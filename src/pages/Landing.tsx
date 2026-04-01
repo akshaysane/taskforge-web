@@ -6,7 +6,7 @@ export default function Landing() {
     <Layout>
       <div className="text-center">
         <div className="text-5xl mb-4">🏠✨</div>
-        <h1 className="text-4xl font-extrabold text-accent mb-2">TaskForge</h1>
+        <h1 className="text-4xl font-extrabold text-accent mb-2">ChoreChamps</h1>
         <p className="text-primary font-semibold mb-8">Make chores fun & rewarding!</p>
 
         <div className="flex flex-col gap-3">

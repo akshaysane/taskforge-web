@@ -24,7 +24,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-extrabold text-accent">TaskForge</h1>
+          <h1 className="text-xl font-extrabold text-accent">ChoreChamps</h1>
           <button
             onClick={handleLogout}
             className="text-sm text-gray-500 hover:text-red-500 font-semibold transition-colors"
