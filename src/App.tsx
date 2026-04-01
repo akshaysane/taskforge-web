@@ -1,7 +1,24 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import PublicRoute from './components/PublicRoute'
+import ProtectedRoute from './components/ProtectedRoute'
+import Landing from './pages/Landing'
+import Register from './pages/Register'
+import Login from './pages/Login'
+import Home from './pages/Home'
+
 export default function App() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
-      <h1 className="text-4xl font-extrabold text-accent">TaskForge</h1>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<PublicRoute />}>
+          <Route path="/" element={<Landing />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+        </Route>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/home" element={<Home />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
