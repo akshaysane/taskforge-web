@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import {
   getTodayChores,
@@ -20,6 +21,7 @@ interface MemberWithStats extends FamilyMember {
 }
 
 export default function ParentHome() {
+  const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const familyId = user?.familyId
 
@@ -112,21 +114,13 @@ export default function ParentHome() {
     fetchMembers()
   }
 
-  if (!familyId) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
-        <Header />
-        <NavBar />
-        <main className="max-w-4xl mx-auto px-4 py-12">
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className="text-5xl mb-4">👨‍👩‍👧‍👦</div>
-            <h2 className="text-2xl font-extrabold text-accent mb-2">No Family Yet</h2>
-            <p className="text-gray-500">Create or join a family to get started!</p>
-          </div>
-        </main>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!familyId) {
+      navigate('/settings', { replace: true })
+    }
+  }, [familyId, navigate])
+
+  if (!familyId) return null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
