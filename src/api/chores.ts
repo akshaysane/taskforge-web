@@ -199,3 +199,15 @@ export async function generateChores(familyId: string): Promise<GenerateResult> 
   const { data } = await apiClient.post<GenerateResult>(`/api/families/${familyId}/chores/generate`)
   return data
 }
+
+export interface StreakResult {
+  userId: string
+  streak: number
+}
+
+export async function getStreak(familyId: string, userId: string): Promise<StreakResult> {
+  const { data } = await apiClient.get<StreakResult>(
+    `/api/families/${familyId}/members/${userId}/streak`,
+  )
+  return data
+}
