@@ -211,3 +211,27 @@ export async function getStreak(familyId: string, userId: string): Promise<Strea
   )
   return data
 }
+
+// --- Achievement types ---
+
+export interface Achievement {
+  key: string
+  name: string
+  icon: string
+  description: string
+  unlockedAt: string
+}
+
+export async function getAchievements(familyId: string, userId: string): Promise<Achievement[]> {
+  const { data } = await apiClient.get<Achievement[]>(
+    `/api/families/${familyId}/members/${userId}/achievements`,
+  )
+  return data
+}
+
+export async function checkAchievements(familyId: string, userId: string): Promise<Achievement[]> {
+  const { data } = await apiClient.post<Achievement[]>(
+    `/api/families/${familyId}/members/${userId}/achievements/check`,
+  )
+  return data
+}
