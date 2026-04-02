@@ -5,6 +5,7 @@ import Landing from './pages/Landing'
 import Register from './pages/Register'
 import Login from './pages/Login'
 import Home from './pages/Home'
+import ChoreManagement from './pages/ChoreManagement'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="/home" element={<Home />} />
+          <Route path="/chores" element={<ChoreManagement />} />
         </Route>
       </Routes>
     </BrowserRouter>

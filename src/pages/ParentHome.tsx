@@ -8,6 +8,7 @@ import {
 } from '../api/chores'
 import type { ChoreInstance, FamilyMember } from '../api/chores'
 import Header from '../components/Header'
+import NavBar from '../components/NavBar'
 import TodayProgress from '../components/TodayProgress'
 import PendingApprovals from '../components/PendingApprovals'
 import FamilyMembers from '../components/FamilyMembers'
@@ -115,6 +116,7 @@ export default function ParentHome() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
         <Header />
+        <NavBar />
         <main className="max-w-4xl mx-auto px-4 py-12">
           <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
             <div className="text-5xl mb-4">👨‍👩‍👧‍👦</div>
@@ -129,6 +131,7 @@ export default function ParentHome() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
       <Header />
+      <NavBar />
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
         {/* Top row: stats grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
