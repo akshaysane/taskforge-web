@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
+import { refreshToken as refreshAuthToken } from '../api/auth'
 import { createFamily, updateFamily, addChild, getMembers, updateMember, removeMember } from '../api/family'
 import type { FamilyMember } from '../api/family'
 import Header from '../components/Header'
@@ -33,8 +34,26 @@ export default function Settings() {
     if (familyId) fetchMembers()
   }, [familyId, fetchMembers])
 
-  const handleFamilyCreated = (newFamilyId: string) => {
+  const login = useAuthStore((s) => s.login)
+  const currentRefreshToken = useAuthStore((s) => s.refreshToken)
+
+  const handleFamilyCreated = async (newFamilyId: string) => {
+    // Update local store immediately
     setFamilyId(newFamilyId)
+
+    // Refresh the JWT so the token has the new familyId
+    if (currentRefreshToken) {
+      try {
+        const tokens = await refreshAuthToken(currentRefreshToken)
+        // Update tokens in store (user info stays, just new tokens)
+        const currentUser = useAuthStore.getState().user
+        if (currentUser) {
+          login(tokens.accessToken, tokens.refreshToken, { ...currentUser, familyId: newFamilyId })
+        }
+      } catch {
+        // Token refresh failed — store update still works for this session
+      }
+    }
   }
 
   const handleAddChild = async (input: { name: string; pin: string }) => {
