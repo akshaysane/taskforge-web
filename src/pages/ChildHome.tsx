@@ -5,8 +5,10 @@ import {
   getPointsBalance,
   getFamilyMembers,
   getStreak,
+  getAchievements,
+  checkAchievements,
 } from '../api/chores'
-import type { ChoreInstance } from '../api/chores'
+import type { ChoreInstance, Achievement } from '../api/chores'
 import { getRewards, getRedemptions } from '../api/rewards'
 import type { Reward, Redemption } from '../api/rewards'
 import Header from '../components/Header'
@@ -16,6 +18,7 @@ import ChoreChecklist from '../components/ChoreChecklist'
 import Leaderboard from '../components/Leaderboard'
 import AvailableRewards from '../components/AvailableRewards'
 import MyRedemptions from '../components/MyRedemptions'
+import AchievementBadges from '../components/AchievementBadges'
 
 export default function ChildHome() {
   const user = useAuthStore((s) => s.user)
@@ -34,6 +37,8 @@ export default function ChildHome() {
   const [loadingRewards, setLoadingRewards] = useState(true)
   const [loadingRedemptions, setLoadingRedemptions] = useState(true)
   const [streak, setStreak] = useState(0)
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [loadingAchievements, setLoadingAchievements] = useState(true)
 
   const fetchChores = useCallback(async () => {
     if (!familyId) return
@@ -113,6 +118,13 @@ export default function ChildHome() {
     }
   }, [familyId, user])
 
+  const fetchAchievements = useCallback(async () => {
+    if (!familyId || !user) return
+    setLoadingAchievements(true)
+    try { setAchievements(await getAchievements(familyId, user.id)) } catch {}
+    finally { setLoadingAchievements(false) }
+  }, [familyId, user])
+
   useEffect(() => {
     fetchChores()
     fetchPoints()
@@ -120,13 +132,23 @@ export default function ChildHome() {
     fetchRewards()
     fetchRedemptions()
     fetchStreak()
-  }, [fetchChores, fetchPoints, fetchLeaderboard, fetchRewards, fetchRedemptions, fetchStreak])
+    fetchAchievements()
+  }, [fetchChores, fetchPoints, fetchLeaderboard, fetchRewards, fetchRedemptions, fetchStreak, fetchAchievements])
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     fetchChores()
     fetchPoints()
     fetchLeaderboard()
     fetchStreak()
+    // Check for new achievements
+    if (familyId && user) {
+      try {
+        const newBadges = await checkAchievements(familyId, user.id)
+        if (newBadges.length > 0) {
+          fetchAchievements()
+        }
+      } catch {}
+    }
   }
 
   const handleRedeem = () => {
@@ -164,6 +186,9 @@ export default function ChildHome() {
           <PointsCard balance={balance} loading={loadingPoints} />
           <StreakCard streak={streak} loading={false} />
         </div>
+
+        {/* Achievements */}
+        <AchievementBadges achievements={achievements} loading={loadingAchievements} />
 
         {/* Chore checklist */}
         <ChoreChecklist
