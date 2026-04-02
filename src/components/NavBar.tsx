@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 const tabs = [
   { label: 'Home', path: '/home', icon: '🏠' },
   { label: 'Chores', path: '/chores', icon: '📋' },
-  { label: 'Rewards', path: '/rewards', icon: '🎁', disabled: true },
+  { label: 'Rewards', path: '/rewards', icon: '🎁' },
 ]
 
 export default function NavBar() {

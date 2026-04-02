@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import ChoreManagement from './pages/ChoreManagement'
+import RewardsManagement from './pages/RewardsManagement'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/home" element={<Home />} />
           <Route path="/chores" element={<ChoreManagement />} />
+          <Route path="/rewards" element={<RewardsManagement />} />
         </Route>
       </Routes>
     </BrowserRouter>
