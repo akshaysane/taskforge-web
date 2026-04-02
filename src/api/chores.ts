@@ -101,3 +101,101 @@ export async function getFamilyMembers(familyId: string): Promise<FamilyMember[]
   )
   return data
 }
+
+// --- Template types ---
+
+export interface ChoreTemplate {
+  id: string
+  name: string
+  description: string | null
+  icon: string | null
+  points: number
+  requiresApproval: boolean
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateTemplateInput {
+  name: string
+  description?: string
+  icon?: string
+  points?: number
+  requiresApproval?: boolean
+}
+
+// --- Schedule types ---
+
+export interface ChoreSchedule {
+  id: string
+  daysOfWeek: number
+  effectiveFrom: string
+  effectiveUntil: string | null
+  isActive: boolean
+  choreTemplate: { id: string; name: string; points: number }
+  assignedTo: { id: string; name: string }
+}
+
+export interface CreateScheduleInput {
+  choreTemplateId: string
+  assignedToId: string
+  daysOfWeek: number
+  effectiveFrom: string
+  effectiveUntil?: string
+}
+
+// --- Generate types ---
+
+export interface GenerateResult {
+  created: number
+  skipped: number
+}
+
+// --- Template API ---
+
+export async function getTemplates(familyId: string): Promise<ChoreTemplate[]> {
+  const { data } = await apiClient.get<ChoreTemplate[]>(`/api/families/${familyId}/chore-templates`)
+  return data
+}
+
+export async function createTemplate(familyId: string, input: CreateTemplateInput): Promise<ChoreTemplate> {
+  const { data } = await apiClient.post<ChoreTemplate>(`/api/families/${familyId}/chore-templates`, input)
+  return data
+}
+
+export async function updateTemplate(familyId: string, templateId: string, input: Partial<CreateTemplateInput>): Promise<ChoreTemplate> {
+  const { data } = await apiClient.patch<ChoreTemplate>(`/api/families/${familyId}/chore-templates/${templateId}`, input)
+  return data
+}
+
+export async function deleteTemplate(familyId: string, templateId: string): Promise<void> {
+  await apiClient.delete(`/api/families/${familyId}/chore-templates/${templateId}`)
+}
+
+// --- Schedule API ---
+
+export async function getSchedules(familyId: string): Promise<ChoreSchedule[]> {
+  const { data } = await apiClient.get<ChoreSchedule[]>(`/api/families/${familyId}/chore-schedules`)
+  return data
+}
+
+export async function createSchedule(familyId: string, input: CreateScheduleInput): Promise<ChoreSchedule> {
+  const { data } = await apiClient.post<ChoreSchedule>(`/api/families/${familyId}/chore-schedules`, input)
+  return data
+}
+
+export async function updateSchedule(familyId: string, scheduleId: string, input: { daysOfWeek?: number; effectiveUntil?: string; isActive?: boolean }): Promise<ChoreSchedule> {
+  const { data } = await apiClient.patch<ChoreSchedule>(`/api/families/${familyId}/chore-schedules/${scheduleId}`, input)
+  return data
+}
+
+export async function deleteSchedule(familyId: string, scheduleId: string): Promise<void> {
+  await apiClient.delete(`/api/families/${familyId}/chore-schedules/${scheduleId}`)
+}
+
+// --- Generate API ---
+
+export async function generateChores(familyId: string): Promise<GenerateResult> {
+  const { data } = await apiClient.post<GenerateResult>(`/api/families/${familyId}/chores/generate`)
+  return data
+}
