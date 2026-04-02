@@ -6,11 +6,15 @@ import {
   getFamilyMembers,
 } from '../api/chores'
 import type { ChoreInstance } from '../api/chores'
+import { getRewards, getRedemptions } from '../api/rewards'
+import type { Reward, Redemption } from '../api/rewards'
 import Header from '../components/Header'
 import PointsCard from '../components/PointsCard'
 import StreakCard from '../components/StreakCard'
 import ChoreChecklist from '../components/ChoreChecklist'
 import Leaderboard from '../components/Leaderboard'
+import AvailableRewards from '../components/AvailableRewards'
+import MyRedemptions from '../components/MyRedemptions'
 
 export default function ChildHome() {
   const user = useAuthStore((s) => s.user)
@@ -24,6 +28,10 @@ export default function ChildHome() {
   const [loadingChores, setLoadingChores] = useState(true)
   const [loadingPoints, setLoadingPoints] = useState(true)
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true)
+  const [rewards, setRewards] = useState<Reward[]>([])
+  const [redemptions, setRedemptions] = useState<Redemption[]>([])
+  const [loadingRewards, setLoadingRewards] = useState(true)
+  const [loadingRedemptions, setLoadingRedemptions] = useState(true)
 
   const fetchChores = useCallback(async () => {
     if (!familyId) return
@@ -79,16 +87,43 @@ export default function ChildHome() {
     }
   }, [familyId])
 
+  const fetchRewards = useCallback(async () => {
+    if (!familyId) return
+    setLoadingRewards(true)
+    try { setRewards(await getRewards(familyId)) } catch {}
+    finally { setLoadingRewards(false) }
+  }, [familyId])
+
+  const fetchRedemptions = useCallback(async () => {
+    if (!familyId) return
+    setLoadingRedemptions(true)
+    try { setRedemptions(await getRedemptions(familyId)) } catch {}
+    finally { setLoadingRedemptions(false) }
+  }, [familyId])
+
   useEffect(() => {
     fetchChores()
     fetchPoints()
     fetchLeaderboard()
-  }, [fetchChores, fetchPoints, fetchLeaderboard])
+    fetchRewards()
+    fetchRedemptions()
+  }, [fetchChores, fetchPoints, fetchLeaderboard, fetchRewards, fetchRedemptions])
 
   const handleComplete = () => {
     fetchChores()
     fetchPoints()
     fetchLeaderboard()
+  }
+
+  const handleRedeem = () => {
+    fetchPoints()
+    fetchRewards()
+    fetchRedemptions()
+  }
+
+  const handleCancelRedemption = () => {
+    fetchPoints()
+    fetchRedemptions()
   }
 
   if (!familyId || !user) {
@@ -130,6 +165,10 @@ export default function ChildHome() {
           currentUserId={user.id}
           loading={loadingLeaderboard}
         />
+        <AvailableRewards rewards={rewards} familyId={familyId} balance={balance}
+          loading={loadingRewards} onRedeem={handleRedeem} />
+        <MyRedemptions redemptions={redemptions} familyId={familyId}
+          loading={loadingRedemptions} onCancel={handleCancelRedemption} />
       </main>
     </div>
   )
