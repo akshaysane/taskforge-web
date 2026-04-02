@@ -56,11 +56,6 @@ export default function Settings() {
     }
   }
 
-  const handleAddChild = async (input: { name: string; pin: string }) => {
-    if (!familyId) return
-    await addChild(familyId, input)
-  }
-
   const handleUpdateMember = async (input: { name?: string; pin?: string }) => {
     if (!familyId || !editingMember) return
     await updateMember(familyId, editingMember.id, input)
@@ -132,7 +127,7 @@ export default function Settings() {
         </div>
 
         {/* Add Child */}
-        <AddChildForm onAdded={fetchMembers} addChild={(input) => addChild(familyId, input)} />
+        <AddChildForm onAdded={fetchMembers} addChild={async (input) => { await addChild(familyId, input) }} />
 
         {/* Member List */}
         <MemberList

@@ -18,14 +18,11 @@ export default function NavBar() {
           return (
             <button
               key={tab.path}
-              onClick={() => !tab.disabled && navigate(tab.path)}
-              disabled={tab.disabled}
+              onClick={() => navigate(tab.path)}
               className={`flex-1 py-2 px-3 rounded-xl text-sm font-bold transition-colors ${
                 isActive
                   ? 'bg-accent text-white shadow-sm'
-                  : tab.disabled
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-500 hover:text-gray-700'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               <span className="mr-1">{tab.icon}</span>
