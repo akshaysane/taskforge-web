@@ -4,6 +4,7 @@ import {
   getTodayChores,
   getPointsBalance,
   getFamilyMembers,
+  getStreak,
 } from '../api/chores'
 import type { ChoreInstance } from '../api/chores'
 import { getRewards, getRedemptions } from '../api/rewards'
@@ -32,6 +33,7 @@ export default function ChildHome() {
   const [redemptions, setRedemptions] = useState<Redemption[]>([])
   const [loadingRewards, setLoadingRewards] = useState(true)
   const [loadingRedemptions, setLoadingRedemptions] = useState(true)
+  const [streak, setStreak] = useState(0)
 
   const fetchChores = useCallback(async () => {
     if (!familyId) return
@@ -101,18 +103,30 @@ export default function ChildHome() {
     finally { setLoadingRedemptions(false) }
   }, [familyId])
 
+  const fetchStreak = useCallback(async () => {
+    if (!familyId || !user) return
+    try {
+      const data = await getStreak(familyId, user.id)
+      setStreak(data.streak)
+    } catch {
+      // ignore
+    }
+  }, [familyId, user])
+
   useEffect(() => {
     fetchChores()
     fetchPoints()
     fetchLeaderboard()
     fetchRewards()
     fetchRedemptions()
-  }, [fetchChores, fetchPoints, fetchLeaderboard, fetchRewards, fetchRedemptions])
+    fetchStreak()
+  }, [fetchChores, fetchPoints, fetchLeaderboard, fetchRewards, fetchRedemptions, fetchStreak])
 
   const handleComplete = () => {
     fetchChores()
     fetchPoints()
     fetchLeaderboard()
+    fetchStreak()
   }
 
   const handleRedeem = () => {
@@ -148,7 +162,7 @@ export default function ChildHome() {
         {/* Top row: points + streak */}
         <div className="grid grid-cols-2 gap-4">
           <PointsCard balance={balance} loading={loadingPoints} />
-          <StreakCard streak={0} loading={false} />
+          <StreakCard streak={streak} loading={false} />
         </div>
 
         {/* Chore checklist */}
