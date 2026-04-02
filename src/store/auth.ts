@@ -15,6 +15,7 @@ interface AuthState {
   isAuthenticated: boolean
   login: (accessToken: string, refreshToken: string, user: AuthUser) => void
   logout: () => void
+  setFamilyId: (familyId: string) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -28,6 +29,10 @@ export const useAuthStore = create<AuthState>()(
         set({ accessToken, refreshToken, user, isAuthenticated: true }),
       logout: () =>
         set({ accessToken: null, refreshToken: null, user: null, isAuthenticated: false }),
+      setFamilyId: (familyId) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, familyId } : null,
+        })),
     }),
     { name: 'auth-storage' },
   ),
