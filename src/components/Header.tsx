@@ -19,7 +19,7 @@ export default function Header() {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-10">
       <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-extrabold text-accent">🏠 ChoreChamps</h1>
+        <h1 className="text-xl font-extrabold text-accent">🏠 Happy Habits</h1>
         <div className="flex items-center gap-3">
           {user?.role === 'parent' && (
             <button

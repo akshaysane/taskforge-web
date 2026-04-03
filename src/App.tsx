@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Landing from './pages/Landing'
 import Register from './pages/Register'
 import Login from './pages/Login'
+import KidLogin from './pages/KidLogin'
 import Home from './pages/Home'
 import ChoreManagement from './pages/ChoreManagement'
 import RewardsManagement from './pages/RewardsManagement'
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/login/kid" element={<KidLogin />} />
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="/home" element={<Home />} />

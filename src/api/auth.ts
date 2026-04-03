@@ -53,6 +53,15 @@ export async function refreshToken(token: string): Promise<RefreshResponse> {
   return data
 }
 
+export async function loginPin(input: {
+  familyName: string
+  name: string
+  pin: string
+}): Promise<LoginResponse> {
+  const { data } = await apiClient.post<LoginResponse>('/api/auth/login/pin', input)
+  return data
+}
+
 export async function logoutUser(token: string): Promise<void> {
   await apiClient.post('/api/auth/logout', { refreshToken: token })
 }
