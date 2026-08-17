@@ -4,6 +4,7 @@ import { apiError, createDesign, getDesign, replaceDesignRequirements, updateDes
 import { listPieceTypes, type PieceType } from '../api/piece-types'
 import ErrorBanner from '../components/feedback/ErrorBanner'
 import LoadingState from '../components/feedback/LoadingState'
+import AccessibleSheet from '../components/overlay/AccessibleSheet'
 
 const blankDesign: DesignInput = { designCode: '', name: '', costumeType: '', primaryColor: '', secondaryColor: '', description: '' }
 
@@ -83,8 +84,8 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
 
   if (loading) return <LoadingState label="Loading design" />
 
-  return <section className="editor-sheet" aria-label={design ? 'Edit design' : 'Add design'}>
-    <div className="editor-heading"><div><h1>{design ? 'Edit design' : 'Add design'}</h1><p>Define the costume and the pieces each complete set needs.</p></div><button className="icon-button" type="button" onClick={close} aria-label="Close design editor">×</button></div>
+  return <AccessibleSheet label={design ? 'Edit design' : 'Add design'} onRequestClose={close}>
+    <div className="editor-heading"><div><h1>{design ? 'Edit design' : 'Add design'}</h1><p>Define the costume and the pieces each complete set needs.</p></div><button data-initial-focus className="icon-button" type="button" onClick={close} aria-label="Close design editor">×</button></div>
     {error ? <ErrorBanner message={error} /> : null}
     <form onSubmit={submit} className="editor-form">
       <div className="editor-fields two-column">
@@ -111,5 +112,5 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
       </fieldset>
       <div className="editor-actions"><button className="button button-secondary" type="button" onClick={close}>Cancel</button><button className="button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save design'}</button></div>
     </form>
-  </section>
+  </AccessibleSheet>
 }

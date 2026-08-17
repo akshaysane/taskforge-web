@@ -40,5 +40,6 @@ export default function MeasurementFields({ value, lockedCode = false, onChange,
       <input name="sortOrder" type="number" min="0" value={value.sortOrder ?? 0} onChange={(event) => onChange({ ...value, sortOrder: Number(event.target.value) })} />
     </label>
     <label className="check-field"><input type="checkbox" checked={value.requiredForItem} onChange={(event) => onChange({ ...value, requiredForItem: event.target.checked })} /> Required for item</label>
+    {value.active !== undefined ? <label className="check-field"><input type="checkbox" checked={value.active} onChange={(event) => onChange({ ...value, active: event.target.checked })} /> Active</label> : null}
   </div>
 }

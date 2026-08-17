@@ -22,6 +22,7 @@ export interface Design {
   archivedAt: string | null
   createdAt: string
   updatedAt: string
+  originalSetCount: number
   pieceRequirements: DesignPieceRequirement[]
 }
 
@@ -64,7 +65,18 @@ export async function createDesign(input: DesignInput): Promise<Design> {
 }
 
 export async function updateDesign(designId: string, input: Omit<DesignInput, 'designCode'>): Promise<Design> {
-  return (await apiClient.patch<Design>(`/api/designs/${designId}`, compact(input))).data
+  const nullable = (value: string | null | undefined) => value?.trim() || null
+  return (await apiClient.patch<Design>(`/api/designs/${designId}`, {
+    name: input.name,
+    costumeType: input.costumeType,
+    primaryColor: nullable(input.primaryColor),
+    secondaryColor: nullable(input.secondaryColor),
+    description: nullable(input.description),
+  })).data
+}
+
+export async function archiveDesign(designId: string): Promise<void> {
+  await apiClient.delete(`/api/designs/${designId}`)
 }
 
 export async function replaceDesignRequirements(designId: string, requirements: DesignPieceRequirement[]): Promise<DesignPieceRequirement[]> {

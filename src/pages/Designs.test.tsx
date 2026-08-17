@@ -18,6 +18,7 @@ const createdDesign = {
   archivedAt: null,
   createdAt: '2026-08-17T00:00:00.000Z',
   updatedAt: '2026-08-17T00:00:00.000Z',
+  originalSetCount: 2,
   pieceRequirements: [],
 }
 
@@ -82,4 +83,54 @@ test('adds the three configured piece types as required design pieces', async ()
   await user.click(screen.getByRole('button', { name: /add piece/i }))
 
   expect(screen.getAllByRole('checkbox', { name: /required/i })).toHaveLength(3)
+})
+
+test('archives a design after confirmation and removes it from the active catalog', async () => {
+  server.use(
+    http.get('*/api/designs', () => HttpResponse.json([createdDesign])),
+    http.delete('*/api/designs/:designId', () => new HttpResponse(null, { status: 204 })),
+  )
+  const user = userEvent.setup()
+  renderDesigns()
+
+  await user.click(await screen.findByRole('button', { name: /archive yellow purple dhoti/i }))
+  expect(screen.getByRole('dialog', { name: /archive design/i })).toBeVisible()
+  await user.click(screen.getByRole('button', { name: /archive design/i }))
+
+  expect(await screen.findByText(/no active designs yet/i)).toBeVisible()
+})
+
+test('sends null to clear optional design fields', async () => {
+  let patchBody: Record<string, unknown> | undefined
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(createdDesign)),
+    http.patch('*/api/designs/:designId', async ({ request }) => {
+      patchBody = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ...createdDesign, primaryColor: null, secondaryColor: null, description: null })
+    }),
+    http.put('*/api/designs/:designId/piece-requirements', () => HttpResponse.json([])),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  await user.clear(await screen.findByLabelText(/primary color/i))
+  await user.clear(screen.getByLabelText(/secondary color/i))
+  await user.clear(screen.getByLabelText(/description/i))
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(patchBody).toMatchObject({ primaryColor: null, secondaryColor: null, description: null })
+})
+
+test('opens an accessible design sheet and restores focus after Escape', async () => {
+  server.use(http.get('*/api/designs', () => HttpResponse.json([])), http.get('*/api/piece-types', () => HttpResponse.json([])))
+  const user = userEvent.setup()
+  renderDesigns()
+  const trigger = await screen.findByRole('button', { name: /add design/i })
+  await user.click(trigger)
+  expect(screen.getByRole('dialog', { name: /add design/i })).toBeVisible()
+  expect(screen.getByRole('button', { name: /close design editor/i })).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog', { name: /add design/i })).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
 })

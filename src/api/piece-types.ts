@@ -46,9 +46,10 @@ function fromWire(definition: MeasurementWire): MeasurementDefinition {
 }
 
 function measurementBody(input: MeasurementDefinitionInput) {
-  const { defaultTolerance, ...rest } = input
+  const { defaultTolerance, matchingGroup, ...rest } = input
   return {
     ...rest,
+    ...(matchingGroup?.trim() ? { matchingGroup: matchingGroup.trim() } : {}),
     ...(defaultTolerance === undefined || defaultTolerance === '' ? {} : { defaultTolerance: Number(defaultTolerance) }),
   }
 }

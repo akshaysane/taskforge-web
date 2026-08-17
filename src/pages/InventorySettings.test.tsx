@@ -40,3 +40,61 @@ test('asks before replacing an unsaved measurement definition', async () => {
 
   expect(screen.getByRole('dialog', { name: /discard unsaved measurement/i })).toBeVisible()
 })
+
+test('edits a piece type active state and display order', async () => {
+  let patchBody: Record<string, unknown> | undefined
+  configureApi()
+  server.use(http.patch('*/api/piece-types/:pieceTypeId', async ({ request }) => {
+    patchBody = await request.json() as Record<string, unknown>
+    return HttpResponse.json({ ...pieceTypes[0], active: false, sortOrder: 4 })
+  }))
+  const user = userEvent.setup()
+  render(<InventorySettings />)
+
+  await user.click(await screen.findByRole('button', { name: /edit piece type/i }))
+  await user.clear(screen.getByLabelText(/display order/i))
+  await user.type(screen.getByLabelText(/display order/i), '4')
+  await user.click(screen.getByRole('checkbox', { name: /^active$/i }))
+  await user.click(screen.getByRole('button', { name: /save piece type/i }))
+
+  expect(patchBody).toMatchObject({ active: false, sortOrder: 4 })
+})
+
+test('omits a blank matching group when creating a measurement', async () => {
+  let requestBody: Record<string, unknown> | undefined
+  configureApi()
+  server.use(http.post('*/api/piece-types/:pieceTypeId/measurement-definitions', async ({ request, params }) => {
+    requestBody = await request.json() as Record<string, unknown>
+    return HttpResponse.json({ id: '5a829591-33dd-4dbd-998c-0e3bfb7c0ca4', pieceTypeId: params.pieceTypeId, code: 'CHEST', label: 'Chest', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }, { status: 201 })
+  }))
+  const user = userEvent.setup()
+  render(<InventorySettings />)
+
+  await user.click(await screen.findByRole('button', { name: /add measurement/i }))
+  await user.type(screen.getByLabelText(/measurement code/i), 'CHEST')
+  await user.type(screen.getByLabelText(/^label$/i), 'Chest')
+  await user.click(screen.getByRole('button', { name: /save measurement/i }))
+
+  expect(requestBody).not.toHaveProperty('matchingGroup')
+})
+
+test('edits measurement active state', async () => {
+  const definition = { id: '5a829591-33dd-4dbd-998c-0e3bfb7c0ca4', pieceTypeId: pieceTypes[0].id, code: 'CHEST', label: 'Chest', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }
+  let patchBody: Record<string, unknown> | undefined
+  configureApi()
+  server.use(
+    http.get('*/api/piece-types/:pieceTypeId/measurement-definitions', () => HttpResponse.json([definition])),
+    http.patch('*/api/measurement-definitions/:definitionId', async ({ request }) => {
+      patchBody = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ...definition, active: false })
+    }),
+  )
+  const user = userEvent.setup()
+  render(<InventorySettings />)
+
+  await user.click(await screen.findByRole('button', { name: /edit chest/i }))
+  await user.click(screen.getByRole('checkbox', { name: /^active$/i }))
+  await user.click(screen.getByRole('button', { name: /save measurement/i }))
+
+  expect(patchBody).toMatchObject({ active: false })
+})
