@@ -45,12 +45,21 @@ function fromWire(definition: MeasurementWire): MeasurementDefinition {
   return { ...definition, defaultTolerance: definition.defaultTolerance === null ? null : String(definition.defaultTolerance) }
 }
 
-function measurementBody(input: MeasurementDefinitionInput) {
+function createMeasurementBody(input: MeasurementDefinitionInput) {
   const { defaultTolerance, matchingGroup, ...rest } = input
   return {
     ...rest,
     ...(matchingGroup?.trim() ? { matchingGroup: matchingGroup.trim() } : {}),
     ...(defaultTolerance === undefined || defaultTolerance === '' ? {} : { defaultTolerance: Number(defaultTolerance) }),
+  }
+}
+
+function updateMeasurementBody(input: Partial<MeasurementDefinitionInput>) {
+  const { defaultTolerance, matchingGroup, ...rest } = input
+  return {
+    ...rest,
+    ...(matchingGroup === undefined ? {} : { matchingGroup: matchingGroup?.trim() || null }),
+    ...(defaultTolerance === undefined ? {} : { defaultTolerance: defaultTolerance === null || defaultTolerance === '' ? null : Number(defaultTolerance) }),
   }
 }
 
@@ -72,11 +81,11 @@ export async function listMeasurementDefinitions(pieceTypeId: string): Promise<M
 }
 
 export async function createMeasurementDefinition(pieceTypeId: string, input: MeasurementDefinitionInput): Promise<MeasurementDefinition> {
-  const response = await apiClient.post<MeasurementWire>(`/api/piece-types/${pieceTypeId}/measurement-definitions`, measurementBody(input))
+  const response = await apiClient.post<MeasurementWire>(`/api/piece-types/${pieceTypeId}/measurement-definitions`, createMeasurementBody(input))
   return fromWire(response.data)
 }
 
 export async function updateMeasurementDefinition(definitionId: string, input: Partial<MeasurementDefinitionInput>): Promise<MeasurementDefinition> {
-  const response = await apiClient.patch<MeasurementWire>(`/api/measurement-definitions/${definitionId}`, measurementBody(input as MeasurementDefinitionInput))
+  const response = await apiClient.patch<MeasurementWire>(`/api/measurement-definitions/${definitionId}`, updateMeasurementBody(input))
   return fromWire(response.data)
 }

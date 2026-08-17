@@ -98,3 +98,24 @@ test('edits measurement active state', async () => {
 
   expect(patchBody).toMatchObject({ active: false })
 })
+
+test('sends null when clearing an existing measurement matching group', async () => {
+  const definition = { id: '5a829591-33dd-4dbd-998c-0e3bfb7c0ca4', pieceTypeId: pieceTypes[0].id, code: 'CHEST', label: 'Chest', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: 'TORSO', defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }
+  let patchBody: Record<string, unknown> | undefined
+  configureApi()
+  server.use(
+    http.get('*/api/piece-types/:pieceTypeId/measurement-definitions', () => HttpResponse.json([definition])),
+    http.patch('*/api/measurement-definitions/:definitionId', async ({ request }) => {
+      patchBody = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ...definition, matchingGroup: null })
+    }),
+  )
+  const user = userEvent.setup()
+  render(<InventorySettings />)
+
+  await user.click(await screen.findByRole('button', { name: /edit chest/i }))
+  await user.clear(screen.getByLabelText(/matching group/i))
+  await user.click(screen.getByRole('button', { name: /save measurement/i }))
+
+  expect(patchBody).toMatchObject({ matchingGroup: null })
+})
