@@ -5,7 +5,7 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { to: '/inventory', label: 'Inventory', icon: 'inventory' },
   { to: '/scan', label: 'Scan', icon: 'scan' },
-  { to: '/more', label: 'More', icon: 'more' },
+  { to: '/configuration', label: 'More', icon: 'more' },
 ] as const
 
 export default function MobileNav() {
