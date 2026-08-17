@@ -12,7 +12,7 @@ export default function MobileNav() {
   return (
     <nav className="mobile-nav" aria-label="Primary navigation">
       {navItems.map(({ to, label, icon }) => (
-        <NavLink key={to} to={to} className="mobile-nav-link">
+        <NavLink key={to} to={to} className={`mobile-nav-link${to === '/scan' ? ' mobile-nav-scan' : ''}`}>
           <NavIcon name={icon} />
           <span>{label}</span>
         </NavLink>
