@@ -1,57 +1,59 @@
-import axios from 'axios'
+import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { refreshSession } from './auth'
+import { useAuthStore } from '../store/auth'
+
+declare module 'axios' {
+  export interface InternalAxiosRequestConfig {
+    _retry?: boolean
+  }
+}
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })
 
-apiClient.interceptors.request.use((config) => {
-  const stored = localStorage.getItem('auth-storage')
-  if (stored) {
-    try {
-      const { state } = JSON.parse(stored)
-      if (state?.accessToken) {
-        config.headers.Authorization = `Bearer ${state.accessToken}`
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }
+let refreshPromise: Promise<string> | null = null
+
+async function getRefreshedAccessToken(): Promise<string> {
+  refreshPromise ??= refreshSession()
+    .then(({ accessToken, user }) => {
+      useAuthStore.getState().setSession(accessToken, user)
+      return accessToken
+    })
+    .finally(() => {
+      refreshPromise = null
+    })
+
+  return refreshPromise
+}
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const accessToken = useAuthStore.getState().accessToken
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
   return config
 })
 
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const original = error.config
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true
+    const original = error.config as InternalAxiosRequestConfig | undefined
+    const isAuthenticationRequest = /\/api\/auth\/(login|refresh)/.test(original?.url ?? '')
 
-      const stored = localStorage.getItem('auth-storage')
-      if (stored) {
-        try {
-          const { state } = JSON.parse(stored)
-          if (state?.refreshToken) {
-            const { data } = await axios.post(
-              `${apiClient.defaults.baseURL}/api/auth/refresh`,
-              { refreshToken: state.refreshToken },
-            )
-
-            const parsed = JSON.parse(stored)
-            parsed.state.accessToken = data.accessToken
-            parsed.state.refreshToken = data.refreshToken
-            localStorage.setItem('auth-storage', JSON.stringify(parsed))
-
-            original.headers.Authorization = `Bearer ${data.accessToken}`
-            return apiClient(original)
-          }
-        } catch {
-          localStorage.removeItem('auth-storage')
-          window.location.href = '/login'
-        }
-      }
+    if (error.response?.status !== 401 || !original || original._retry || isAuthenticationRequest) {
+      return Promise.reject(error)
     }
-    return Promise.reject(error)
+
+    original._retry = true
+    try {
+      const accessToken = await getRefreshedAccessToken()
+      original.headers.Authorization = `Bearer ${accessToken}`
+      return apiClient(original)
+    } catch (refreshError) {
+      useAuthStore.getState().clearSession()
+      return Promise.reject(refreshError)
+    }
   },
 )
 

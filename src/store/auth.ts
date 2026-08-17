@@ -1,39 +1,38 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { refreshSession } from '../api/auth'
 
-interface AuthUser {
+export interface AdminUser {
   id: string
+  email: string
   name: string
-  role: string
-  familyId: string | null
+  role: 'ADMIN'
 }
 
-interface AuthState {
+export interface AuthState {
+  status: 'loading' | 'authenticated' | 'anonymous'
   accessToken: string | null
-  refreshToken: string | null
-  user: AuthUser | null
-  isAuthenticated: boolean
-  login: (accessToken: string, refreshToken: string, user: AuthUser) => void
-  logout: () => void
-  setFamilyId: (familyId: string) => void
+  user: AdminUser | null
+  setSession: (accessToken: string, user: AdminUser) => void
+  clearSession: () => void
+  bootstrap: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      accessToken: null,
-      refreshToken: null,
-      user: null,
-      isAuthenticated: false,
-      login: (accessToken, refreshToken, user) =>
-        set({ accessToken, refreshToken, user, isAuthenticated: true }),
-      logout: () =>
-        set({ accessToken: null, refreshToken: null, user: null, isAuthenticated: false }),
-      setFamilyId: (familyId) =>
-        set((state) => ({
-          user: state.user ? { ...state.user, familyId } : null,
-        })),
-    }),
-    { name: 'auth-storage' },
-  ),
-)
+let bootstrapPromise: Promise<void> | null = null
+
+export const useAuthStore = create<AuthState>((set) => ({
+  status: 'loading',
+  accessToken: null,
+  user: null,
+  setSession: (accessToken, user) => set({ accessToken, user, status: 'authenticated' }),
+  clearSession: () => set({ accessToken: null, user: null, status: 'anonymous' }),
+  bootstrap: async () => {
+    bootstrapPromise ??= refreshSession()
+      .then(({ accessToken, user }) => set({ accessToken, user, status: 'authenticated' }))
+      .catch(() => set({ accessToken: null, user: null, status: 'anonymous' }))
+      .finally(() => {
+        bootstrapPromise = null
+      })
+
+    return bootstrapPromise
+  },
+}))

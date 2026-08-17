@@ -1,94 +1,66 @@
-import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import Layout from '../components/Layout'
-import { loginUser } from '../api/auth'
-import { useAuthStore } from '../store/auth'
 import { AxiosError } from 'axios'
+import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { loginUser } from '../api/auth'
+import ErrorBanner from '../components/feedback/ErrorBanner'
+import { useAuthStore } from '../store/auth'
 
 export default function Login() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const login = useAuthStore((s) => s.login)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const setSession = useAuthStore((state) => state.setSession)
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const justRegistered = (location.state as { registered?: boolean })?.registered
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    setError(null)
+    setIsSubmitting(true)
 
     try {
-      const result = await loginUser({ email, password })
-      login(result.accessToken, result.refreshToken, result.user)
-      navigate('/home', { replace: true })
-    } catch (err) {
-      if (err instanceof AxiosError && err.response?.status === 401) {
-        setError('Invalid email or password')
-      } else {
-        setError('Unable to connect to server')
-      }
+      const session = await loginUser({
+        email: String(formData.get('email') ?? ''),
+        password: String(formData.get('password') ?? ''),
+      })
+      setSession(session.accessToken, session.user)
+      navigate('/dashboard', { replace: true })
+    } catch (requestError) {
+      setError(requestError instanceof AxiosError && requestError.response?.status === 401
+        ? 'Invalid email or password.'
+        : 'Unable to sign in. Please try again.')
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
   }
 
   return (
-    <Layout>
-      <div className="text-center mb-6">
-        <div className="text-4xl mb-2">👋</div>
-        <h1 className="text-2xl font-extrabold text-accent">Welcome Back!</h1>
-        <p className="text-gray-500 text-sm">Please sign in to continue</p>
-      </div>
-
-      {justRegistered && (
-        <div className="bg-green-50 text-primary text-sm font-semibold px-4 py-3 rounded-xl mb-4">
-          Account created! Please log in.
+    <main className="login-page">
+      <section className="login-brand" aria-label="RasikaPriya Dance Shop">
+        <div className="login-ornament" aria-hidden="true" />
+        <div className="login-brand-copy">
+          <span>RasikaPriya</span>
+          <small>Dance Shop</small>
         </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 text-red-600 text-sm font-semibold px-4 py-3 rounded-xl mb-4">
-          {error}
+      </section>
+      <section className="login-form-panel" aria-labelledby="login-title">
+        <div className="mobile-login-brand" aria-hidden="true">
+          <span>RasikaPriya</span>
+          <small>Dance Shop</small>
         </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full bg-surface rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="w-full bg-surface rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white font-bold py-3 rounded-full text-lg transition-colors"
-        >
-          {loading ? 'Signing In...' : 'Log In'}
-        </button>
-      </form>
-
-      <p className="text-center text-sm text-gray-500 mt-6">
-        Don't have an account?{' '}
-        <Link to="/register" className="text-accent font-semibold hover:underline">
-          Sign Up
-        </Link>
-      </p>
-    </Layout>
+        <h1 id="login-title">Welcome back</h1>
+        <p>Sign in to manage costume inventory.</p>
+        <form onSubmit={handleSubmit} noValidate>
+          <label htmlFor="email">Email</label>
+          <input id="email" name="email" type="email" autoComplete="email" required />
+          <label htmlFor="password">Password</label>
+          <input id="password" name="password" type="password" autoComplete="current-password" required />
+          {error ? <ErrorBanner message={error} /> : null}
+          <button className="button login-submit" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in' : 'Sign in'}
+          </button>
+        </form>
+        <small className="login-access-note">Administrator access only.</small>
+      </section>
+    </main>
   )
 }

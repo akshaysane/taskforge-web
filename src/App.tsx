@@ -1,31 +1,49 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import PublicRoute from './components/PublicRoute'
+import { useEffect } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import AppShell from './components/app/AppShell'
+import LoadingState from './components/feedback/LoadingState'
 import ProtectedRoute from './components/ProtectedRoute'
-import Landing from './pages/Landing'
-import Register from './pages/Register'
+import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
-import KidLogin from './pages/KidLogin'
-import Home from './pages/Home'
-import ChoreManagement from './pages/ChoreManagement'
-import RewardsManagement from './pages/RewardsManagement'
-import Settings from './pages/Settings'
+import { useAuthStore } from './store/auth'
+
+function PublicOnlyRoute() {
+  const status = useAuthStore((state) => state.status)
+  if (status === 'loading') return <LoadingState label="Loading inventory" />
+  if (status === 'authenticated') return <Navigate to="/dashboard" replace />
+  return <Outlet />
+}
+
+function RoutePlaceholder({ title }: { title: string }) {
+  return <div className="route-placeholder"><h1>{title}</h1></div>
+}
 
 export default function App() {
+  const bootstrap = useAuthStore((state) => state.bootstrap)
+
+  useEffect(() => {
+    void bootstrap()
+  }, [bootstrap])
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<PublicRoute />}>
-          <Route path="/" element={<Landing />} />
-          <Route path="/register" element={<Register />} />
+        <Route element={<PublicOnlyRoute />}>
           <Route path="/login" element={<Login />} />
-          <Route path="/login/kid" element={<KidLogin />} />
         </Route>
         <Route element={<ProtectedRoute />}>
-          <Route path="/home" element={<Home />} />
-          <Route path="/chores" element={<ChoreManagement />} />
-          <Route path="/rewards" element={<RewardsManagement />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route element={<AppShell />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/inventory" element={<RoutePlaceholder title="Inventory" />} />
+            <Route path="/scan" element={<RoutePlaceholder title="Scan" />} />
+            <Route path="/onboarding" element={<RoutePlaceholder title="Onboarding" />} />
+            <Route path="/designs" element={<RoutePlaceholder title="Designs" />} />
+            <Route path="/configuration" element={<RoutePlaceholder title="Configuration" />} />
+            <Route path="/administrators" element={<RoutePlaceholder title="Administrators" />} />
+            <Route path="/more" element={<RoutePlaceholder title="More" />} />
+          </Route>
         </Route>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   )
