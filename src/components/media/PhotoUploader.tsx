@@ -30,7 +30,9 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
   useEffect(() => () => { photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl)) }, [])
 
   function updatePhoto(file: File, patch: Partial<PendingPhoto>) {
-    setPhotos((current) => current.map((photo) => photo.file === file ? { ...photo, ...patch } : photo))
+    const next = photosRef.current.map((photo) => photo.file === file ? { ...photo, ...patch } : photo)
+    photosRef.current = next
+    setPhotos(next)
   }
 
   async function upload(file: File) {
@@ -41,12 +43,10 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
       await uploadPresignedFile(session.upload.url, session.upload.headers, file)
       await completeMediaUpload(session.mediaAsset.id)
       const link = await attachMedia(ownerType, ownerId, session.mediaAsset.id, purpose, photosRef.current.filter((photo) => photo.link).length)
-      updatePhoto(file, { state: 'ready', link })
-      setPhotos((current) => {
-        const next = current.map((photo) => photo.file === file ? { ...photo, state: 'ready' as const, link } : photo)
-        onChange(mergePhotos(existingPhotos, next))
-        return next
-      })
+      const next = photosRef.current.map((photo) => photo.file === file ? { ...photo, state: 'ready' as const, link } : photo)
+      photosRef.current = next
+      setPhotos(next)
+      onChange(mergePhotos(existingPhotos, next))
     } catch {
       updatePhoto(file, { state: 'failed' })
       setError('Upload failed. Please retry.')
@@ -63,7 +63,9 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
     const selected = valid.slice(0, available)
     if (valid.length > available) setError(`You can add up to ${maxPhotos} photos.`)
     const pending = selected.map((file) => ({ file, previewUrl: URL.createObjectURL(file), state: 'idle' as const }))
-    setPhotos((current) => [...current, ...pending])
+    const next = [...photosRef.current, ...pending]
+    photosRef.current = next
+    setPhotos(next)
     pending.forEach((photo) => { void upload(photo.file) })
   }
 
@@ -75,11 +77,10 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
       return
     }
     URL.revokeObjectURL(photo.previewUrl)
-    setPhotos((current) => {
-      const next = current.filter((candidate) => candidate !== photo)
-      onChange(mergePhotos(existingPhotos.filter((candidate) => candidate.id !== photo.link?.id), next))
-      return next
-    })
+    const next = photosRef.current.filter((candidate) => candidate !== photo)
+    photosRef.current = next
+    setPhotos(next)
+    onChange(mergePhotos(existingPhotos.filter((candidate) => candidate.id !== photo.link?.id), next))
   }
 
   return <section className="photo-uploader" aria-label="Photos">

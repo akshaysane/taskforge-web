@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
+    exclude: ['e2e/**', 'node_modules/**'],
     environment: 'jsdom',
     pool: 'forks',
     environmentOptions: {

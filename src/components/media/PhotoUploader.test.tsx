@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
+import { useState } from 'react'
 import { expect, test, vi } from 'vitest'
 import PhotoUploader from './PhotoUploader'
+import type { MediaLink } from '../../api/media'
 import { server } from '../../test/server'
 
 const mediaAsset = {
@@ -72,4 +74,26 @@ test('keeps removal unavailable while an upload is in flight', async () => {
 
   releaseUpload()
   await screen.findByRole('img', { name: 'pending.jpg' })
+})
+
+test('notifies a stateful parent after upload without a render-time state update', async () => {
+  server.use(
+    http.post('*/api/media/uploads', () => HttpResponse.json({ mediaAsset: { ...mediaAsset, uploadStatus: 'PENDING' }, upload: { url: 'https://uploads.example/success', method: 'PUT', headers: { 'content-type': 'image/jpeg' }, expiresAt: '2026-08-17T00:05:00.000Z' } }, { status: 201 })),
+    http.put('https://uploads.example/success', () => new HttpResponse(null, { status: 200 })),
+    http.post('*/api/media/:mediaAssetId/complete', () => HttpResponse.json(mediaAsset)),
+    http.post('*/api/designs/:designId/media/:mediaAssetId', () => HttpResponse.json({ id: 'link-1', mediaAssetId: mediaAsset.id, purpose: 'REFERENCE', caption: null, sortOrder: 0, mediaAsset }, { status: 201 })),
+  )
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:success')
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  const parentChange = vi.fn()
+  const user = userEvent.setup()
+  function Harness() {
+    const [photos, setPhotos] = useState<MediaLink[]>([])
+    return <PhotoUploader ownerType="design" ownerId="design-1" purpose="REFERENCE" maxPhotos={3} existingPhotos={photos} onChange={(next) => { parentChange(next); setPhotos(next) }} />
+  }
+  render(<Harness />)
+
+  await user.upload(screen.getByLabelText(/add photo/i), new File(['test'], 'success.jpg', { type: 'image/jpeg' }))
+  await waitFor(() => expect(parentChange).toHaveBeenCalled())
+  expect(consoleError.mock.calls.map(([message]) => String(message))).not.toContain(expect.stringContaining('Cannot update a component'))
 })
