@@ -82,6 +82,7 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
   }
 
   return <section className="photo-uploader" aria-label="Photos">
+    <p className="sr-only" role="status" aria-live="polite">{photos.find((photo) => photo.state === 'uploading') ? `Uploading ${photos.find((photo) => photo.state === 'uploading')!.file.name}.` : ''}</p>
     <label className="button button-secondary">Add photo
       <input aria-label="Add photo" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={selectFiles} hidden disabled={existingPhotos.length + photos.filter((photo) => !photo.link).length >= maxPhotos} />
     </label>
@@ -92,7 +93,7 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
         <img src={photo.previewUrl} alt={photo.file.name} />
         {photo.state === 'uploading' ? <figcaption>Uploading photo…</figcaption> : null}
         {photo.state === 'failed' ? <figcaption>Upload failed. <button type="button" onClick={() => { void upload(photo.file) }} aria-label={`Retry ${photo.file.name}`}>Retry</button></figcaption> : null}
-        <button type="button" className="icon-button" aria-label={`Remove ${photo.file.name}`} onClick={() => { void remove(photo) }}>×</button>
+        <button type="button" className="icon-button" aria-label={`Remove ${photo.file.name}`} disabled={photo.state === 'uploading'} onClick={() => { void remove(photo) }}>×</button>
       </figure>)}
     </div>
   </section>

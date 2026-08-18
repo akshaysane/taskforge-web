@@ -52,3 +52,24 @@ test('uploads with presigned headers, completes, attaches, previews, and retries
   await user.click(screen.getByRole('button', { name: /remove photo.jpg/i }))
   expect(revokeObjectUrl).toHaveBeenCalledWith('blob:preview')
 })
+
+test('keeps removal unavailable while an upload is in flight', async () => {
+  let releaseUpload: () => void = () => undefined
+  const uploadFinished = new Promise<void>((resolve) => { releaseUpload = resolve })
+  server.use(
+    http.post('*/api/media/uploads', () => HttpResponse.json({ mediaAsset: { ...mediaAsset, uploadStatus: 'PENDING' }, upload: { url: 'https://uploads.example/pending', method: 'PUT', headers: { 'content-type': 'image/jpeg' }, expiresAt: '2026-08-17T00:05:00.000Z' } }, { status: 201 })),
+    http.put('https://uploads.example/pending', async () => { await uploadFinished; return new HttpResponse(null, { status: 200 }) }),
+    http.post('*/api/media/:mediaAssetId/complete', () => HttpResponse.json(mediaAsset)),
+    http.post('*/api/designs/:designId/media/:mediaAssetId', () => HttpResponse.json({ id: 'link-1', mediaAssetId: mediaAsset.id, purpose: 'REFERENCE', caption: null, sortOrder: 0, mediaAsset }, { status: 201 })),
+  )
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:pending')
+  const user = userEvent.setup()
+  render(<PhotoUploader ownerType="design" ownerId="design-1" purpose="REFERENCE" maxPhotos={3} onChange={() => undefined} />)
+
+  await user.upload(screen.getByLabelText(/add photo/i), new File(['test'], 'pending.jpg', { type: 'image/jpeg' }))
+  expect(await screen.findByRole('status')).toHaveTextContent(/uploading pending.jpg/i)
+  expect(screen.getByRole('button', { name: /remove pending.jpg/i })).toBeDisabled()
+
+  releaseUpload()
+  await screen.findByRole('img', { name: 'pending.jpg' })
+})

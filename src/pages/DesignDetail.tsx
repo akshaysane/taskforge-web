@@ -116,7 +116,7 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
         <button type="button" className="button button-secondary" onClick={() => { const available = pieceTypes.find((piece) => !requirements.some((requirement) => requirement.pieceTypeId === piece.id)); if (available) setRequirements((current) => [...current, rowFromPiece(available, current.length)]) }}>Add piece</button>
       </fieldset>
       <fieldset className="requirements"><legend>Reference photos</legend><p>Keep visual references with this design.</p>
-        {design ? <><PhotoUploader ownerType="design" ownerId={design.id} purpose="REFERENCE" maxPhotos={12} existingPhotos={photos} onChange={setPhotos} /><PhotoGallery photos={photos} /></> : <p>Save the design before adding reference photos.</p>}
+        {design ? <><PhotoUploader ownerType="design" ownerId={design.id} purpose="REFERENCE" maxPhotos={12} existingPhotos={photos} onChange={setPhotos} /><PhotoGallery photos={photos} ownerType="design" ownerId={design.id} onChange={setPhotos} /></> : <p>Save the design before adding reference photos.</p>}
       </fieldset>
       <div className="editor-actions"><button className="button button-secondary" type="button" onClick={close}>Cancel</button><button className="button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save design'}</button></div>
     </form>
