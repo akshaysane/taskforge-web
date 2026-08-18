@@ -7,6 +7,7 @@ frontend:
         - pnpm install --frozen-lockfile
     build:
       commands:
+        - 'test "${VITE_API_URL:-}" = "https://api.happyhabits.click" || { echo "VITE_API_URL must equal https://api.happyhabits.click" >&2; exit 1; }'
         - pnpm build
   artifacts:
     baseDirectory: dist
