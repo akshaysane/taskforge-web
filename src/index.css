@@ -134,6 +134,30 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .photo-preview img { width: 100%; height: 126px; display: block; object-fit: cover; }
 .photo-preview figcaption { padding: 6px 8px; font-size: .76rem; }
 .photo-preview .icon-button { position: absolute; top: 5px; right: 5px; min-width: 32px; min-height: 32px; background: rgba(255,255,255,.94); }
+.original-sets-page, .onboarding-page { width: min(100%, 1240px); padding: 34px 38px 58px; }
+.page-copy { margin: 0 0 22px; color: #6d676a; }
+.onboarding-filters { display: flex; gap: 16px; margin: 0 0 20px; padding: 18px; border: 1px solid #ded8d4; border-radius: 10px; background: #fff; }
+.onboarding-filters label, .onboarding-filters select, .page-header-actions select { min-height: 44px; color: #292527; }
+.onboarding-filters label { display: grid; gap: 6px; min-width: 190px; font-size: .85rem; font-weight: 700; }
+.onboarding-filters select, .page-header-actions select { padding: 0 10px; border: 1px solid #bfb7b2; border-radius: 8px; background: #fff; }
+.original-sets-table .table-header, .original-sets-table .table-row { grid-template-columns: minmax(150px, 1.3fr) minmax(120px, .85fr) 88px minmax(140px, 1fr) 100px 100px; }
+.set-progress { display: flex; align-items: center; gap: 9px; }
+.set-progress i { width: 100%; height: 7px; overflow: hidden; border-radius: 999px; background: #ebe6e2; }
+.set-progress em { height: 100%; display: block; border-radius: inherit; background: #d28a16; }
+.verified-badge, .incomplete-badge { width: fit-content; padding: 5px 9px; border-radius: 7px; font-size: .84rem; font-weight: 700; }
+.verified-badge { background: #e8f3e4; color: #1c6c27; }
+.incomplete-badge { background: #fff0db; color: #a95700; }
+.onboarding-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+.onboarding-heading h1, .onboarding-step h2 { margin: 0; color: #4b163c; font-family: Georgia, 'Iowan Old Style', serif; font-weight: 500; }
+.onboarding-heading h1 { font-size: clamp(2.25rem, 4vw, 3rem); }.onboarding-heading p { margin: 7px 0 0; color: #6d676a; font-size: 1.1rem; }
+.onboarding-progress { display: grid; grid-template-columns: repeat(5, 1fr); margin: 0 0 28px; padding: 0; list-style: none; }
+.onboarding-progress li { position: relative; display: grid; justify-items: center; }.onboarding-progress li:not(:last-child)::after { content: ''; position: absolute; top: 20px; right: -50%; left: 50%; border-top: 1px solid #bfb7b2; }
+.onboarding-progress button { position: relative; z-index: 1; display: grid; justify-items: center; gap: 6px; border: 0; background: transparent; color: #6d676a; cursor: pointer; }.onboarding-progress button:disabled { cursor: default; }
+.onboarding-progress b { width: 42px; height: 42px; display: grid; place-content: center; border: 1px solid currentColor; border-radius: 50%; background: #fff; }.onboarding-progress .active button { color: #fff; font-weight: 700; }.onboarding-progress .active b { border-color: #4b163c; background: #4b163c; }.onboarding-progress .complete button { color: #4b163c; }
+.onboarding-step { display: grid; gap: 18px; padding: 24px; border: 1px solid #ded8d4; border-radius: 12px; background: #fff; }.onboarding-step h2 { font-size: 1.8rem; }.onboarding-step p { margin: 0; color: #6d676a; }
+.onboarding-step dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }.onboarding-step dl div { padding: 14px; border-left: 3px solid #d28a16; background: #fcfaf7; }.onboarding-step dt { color: #6d676a; font-size: .82rem; }.onboarding-step dd { margin: 4px 0 0; font-weight: 700; }
+.step-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.piece-entry { display: grid; gap: 12px; padding: 18px; border: 1px solid #ded8d4; border-left: 6px solid #d28a16; border-radius: 10px; }.piece-entry h3, .piece-entry p { margin: 0; }.piece-entry h3 { font-size: 1.35rem; }.piece-entry p { color: #6d676a; }.piece-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }.piece-fields label { display: grid; gap: 6px; font-weight: 600; }.piece-fields input { min-height: 48px; padding: 8px 10px; border: 1px solid #bfb7b2; border-radius: 8px; }.piece-fields strong { color: #a95700; font-size: .78rem; }
+.onboarding-labels { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }.onboarding-labels article { display: grid; gap: 9px; }.verification-list { display: grid; gap: 10px; margin: 0; padding-left: 20px; }.onboarding-actions { display: flex; justify-content: space-between; gap: 14px; margin-top: 26px; }
 .configuration-layout { display: grid; grid-template-columns: minmax(245px, .7fr) minmax(0, 1.5fr); gap: 26px; }
 .piece-types-panel, .measurements-panel { min-width: 0; }
 .section-heading { min-height: 54px; margin-bottom: 14px; }
@@ -169,6 +193,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .dashboard-overview, .route-placeholder { padding: 38px 42px; }
   .scan-page { margin: auto; padding: 38px 42px 44px; }
   .config-page { padding: 34px 42px 44px; }
+  .original-sets-page, .onboarding-page { padding: 34px 42px 44px; }
   .configuration-layout { grid-template-columns: 1fr; }
 }
 
@@ -190,6 +215,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .scan-page-header { text-align: left; }
   .qr-camera-panel { min-height: 226px; }
   .config-page { padding: 30px 24px 36px; }
+  .original-sets-page, .onboarding-page { padding: 30px 24px 38px; }
+  .onboarding-filters, .step-title { align-items: stretch; flex-direction: column; }.onboarding-filters label { min-width: 0; }.onboarding-step dl, .piece-fields { grid-template-columns: 1fr; }.onboarding-progress button span { font-size: .75rem; }.onboarding-progress b { width: 36px; height: 36px; }.onboarding-progress li:not(:last-child)::after { top: 18px; }.original-sets-table .table-row > span:nth-child(1)::before { content: 'Design'; }.original-sets-table .table-row > strong::before { content: 'Original set code'; }.original-sets-table .table-row > span:nth-child(3)::before { content: 'Items'; }.original-sets-table .table-row > span:nth-child(4)::before { content: 'Progress'; }.original-sets-table .table-row > span:nth-child(5)::before { content: 'Status'; }
   .page-intro { align-items: flex-start; flex-direction: column; }
   .data-table { overflow: visible; border: 0; border-radius: 0; background: transparent; }
   .table-header { display: none; }

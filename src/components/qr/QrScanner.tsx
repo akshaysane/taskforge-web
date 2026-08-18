@@ -14,6 +14,8 @@ type BrowserReaderConstructor = new () => BrowserReader
 interface QrScannerProps {
   onScan: (rawValue: string) => boolean | Promise<boolean>
   loadReader?: () => Promise<BrowserReaderConstructor>
+  manualLabel?: string
+  submitLabel?: string
 }
 
 function cameraDenied(error: unknown): boolean {
@@ -25,7 +27,7 @@ async function loadBrowserReader(): Promise<BrowserReaderConstructor> {
   return module.BrowserQRCodeReader
 }
 
-export default function QrScanner({ onScan, loadReader = loadBrowserReader }: QrScannerProps) {
+export default function QrScanner({ onScan, loadReader = loadBrowserReader, manualLabel = 'Enter inventory code', submitLabel = 'Find item' }: QrScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const controlsRef = useRef<ScannerControls | null>(null)
   const stoppedControlsRef = useRef(new WeakSet<ScannerControls>())
@@ -58,8 +60,8 @@ export default function QrScanner({ onScan, loadReader = loadBrowserReader }: Qr
       controlsRef.current = controls
     }
     stopCamera()
-    void Promise.resolve(onScan(rawValue)).then((completed) => {
-      if (!completed) handledRef.current = false
+    void Promise.resolve(onScan(rawValue)).then(() => {
+      handledRef.current = false
     }).catch(() => {
       handledRef.current = false
     })
@@ -123,9 +125,9 @@ export default function QrScanner({ onScan, loadReader = loadBrowserReader }: Qr
     </div>
     <div className="qr-manual-divider"><span>or</span></div>
     <form className="qr-manual-form" onSubmit={submitManualCode}>
-      <label htmlFor="manual-inventory-code">Enter inventory code</label>
+      <label htmlFor="manual-inventory-code">{manualLabel}</label>
       <input id="manual-inventory-code" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="YP-S04-BL" autoCapitalize="characters" />
-      <button className="button button-secondary" type="submit">Find item</button>
+      <button className="button button-secondary" type="submit">{submitLabel}</button>
     </form>
   </section>
 }

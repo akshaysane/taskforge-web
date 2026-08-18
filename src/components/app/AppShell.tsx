@@ -6,7 +6,7 @@ const navItems = [
   ['Dashboard', '/dashboard', 'dashboard'],
   ['Inventory', '/inventory', 'inventory'],
   ['Scan', '/scan', 'scan'],
-  ['Onboarding', '/onboarding', 'more'],
+  ['Onboarding', '/original-sets', 'more'],
   ['Designs', '/designs', 'inventory'],
   ['Configuration', '/configuration', 'more'],
   ['Administrators', '/administrators', 'more'],

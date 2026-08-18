@@ -32,3 +32,19 @@ export async function recordLabelPrinted(inventoryItemId: string): Promise<void>
 export async function verifyInventoryLabel(inventoryCode: string): Promise<{ alreadyVerified: boolean }> {
   return (await apiClient.post<{ alreadyVerified: boolean }>(`/api/inventory-items/by-code/${encodeURIComponent(inventoryCode)}/verify-label`)).data
 }
+
+export interface InventoryItemUpdate {
+  version: number
+  customSize?: string | null
+  condition?: string
+  storageLocation?: string | null
+  notes?: string | null
+  alterationAllowance?: string | null
+  purchaseCost?: string | null
+  stitchingCost?: string | null
+  measurements: Array<{ measurementDefinitionId: string; value: string }>
+}
+
+export async function updateInventoryItem(inventoryItemId: string, input: InventoryItemUpdate): Promise<InventoryItem> {
+  return (await apiClient.patch<InventoryItem>(`/api/inventory-items/${inventoryItemId}`, input)).data
+}

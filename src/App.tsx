@@ -11,6 +11,8 @@ import Login from './pages/Login'
 import { useAuthStore } from './store/auth'
 
 const Scan = lazy(() => import('./pages/Scan'))
+const OriginalSets = lazy(() => import('./pages/OriginalSets'))
+const OriginalSetOnboarding = lazy(() => import('./pages/OriginalSetOnboarding'))
 
 function PublicOnlyRoute() {
   const status = useAuthStore((state) => state.status)
@@ -48,7 +50,9 @@ export default function App() {
             <Route path="/inventory" element={<RoutePlaceholder title="Inventory" />} />
             <Route path="/scan" element={<Suspense fallback={<LoadingState label="Loading scanner" />}><Scan /></Suspense>} />
             <Route path="/inventory/:inventoryCode" element={<InventoryItemPlaceholder />} />
-            <Route path="/onboarding" element={<RoutePlaceholder title="Onboarding" />} />
+            <Route path="/onboarding" element={<Navigate to="/original-sets" replace />} />
+            <Route path="/original-sets" element={<Suspense fallback={<LoadingState label="Loading original sets" />}><OriginalSets /></Suspense>} />
+            <Route path="/original-sets/:originalSetId" element={<Suspense fallback={<LoadingState label="Loading original set" />}><OriginalSetOnboarding /></Suspense>} />
             <Route path="/designs" element={<Designs />} />
             <Route path="/designs/:designId" element={<DesignDetail />} />
             <Route path="/configuration" element={<InventorySettings />} />
