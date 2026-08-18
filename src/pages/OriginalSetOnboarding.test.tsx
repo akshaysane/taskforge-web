@@ -1,20 +1,20 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { expect, test, vi } from 'vitest'
 import OriginalSetOnboarding from './OriginalSetOnboarding'
 import { server } from '../test/server'
 
 const ids = { set: '2e48d7f1-fdef-4b21-a2bb-9df4c7492db5', design: '4e48d7f1-fdef-4b21-a2bb-9df4c7492db5', piece: '8e48d7f1-fdef-4b21-a2bb-9df4c7492db5', item: '9e48d7f1-fdef-4b21-a2bb-9df4c7492db5', definition: '7e48d7f1-fdef-4b21-a2bb-9df4c7492db5', photo: '6e48d7f1-fdef-4b21-a2bb-9df4c7492db5' }
-const item = { id: ids.item, originalSetId: ids.set, pieceTypeId: ids.piece, pieceSequence: 1, inventoryCode: 'YP-S04-BL', customSize: null, lifecycleStatus: 'ACTIVE', condition: 'GOOD', storageLocation: null, alterationAllowance: null, notes: null, purchaseCost: null, stitchingCost: null, archivedAt: null, version: 1, createdAt: '2026-08-17T00:00:00.000Z', updatedAt: '2026-08-17T00:00:00.000Z', measurements: [], labelVerified: false }
+const item = { id: ids.item, originalSetId: ids.set, pieceTypeId: ids.piece, pieceSequence: 1, inventoryCode: 'YP-S04-BL', customSize: null, lifecycleStatus: 'ACTIVE', condition: 'GOOD', storageLocation: null, alterationAllowance: null, notes: null, purchaseCost: null, stitchingCost: null, archivedAt: null, version: 1, createdAt: '2026-08-17T00:00:00.000Z', updatedAt: '2026-08-17T00:00:00.000Z', measurements: [], labelVerified: false, pieceType: { id: ids.piece, code: 'BL', name: 'Blouse', measurementDefinitions: [{ id: ids.definition, pieceTypeId: ids.piece, code: 'CHEST', label: 'Chest around', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }] } }
 const detail = {
   id: ids.set, designId: ids.design, originalSetCode: 'YP-S04', sequenceNumber: 4, notes: 'Tailor packet', verifiedAt: null, verifiedById: null, archivedAt: null, createdAt: item.createdAt, updatedAt: item.updatedAt, inventoryItemCount: 1,
   design: { id: ids.design, designCode: 'YP', name: 'Yellow / Purple Dhoti', costumeType: 'Dhoti', primaryColor: 'Yellow', secondaryColor: 'Purple', pieceRequirements: [{ id: '5e48d7f1-fdef-4b21-a2bb-9df4c7492db5', designId: ids.design, pieceTypeId: ids.piece, quantity: 1, required: true, sortOrder: 0, pieceType: { id: ids.piece, code: 'BL', name: 'Blouse', measurementDefinitions: [{ id: ids.definition, pieceTypeId: ids.piece, code: 'CHEST', label: 'Chest around', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }] } }] },
   inventoryItems: [item], media: [{ id: 'link', mediaAssetId: ids.photo, purpose: 'REFERENCE', caption: null, sortOrder: 0, mediaAsset: { id: ids.photo, objectKey: 'photo.jpg', mimeType: 'image/jpeg', byteSize: 20, checksum: null, uploadStatus: 'READY', uploadedById: ids.design, createdAt: item.createdAt, updatedAt: item.updatedAt } }],
 }
 
-function renderOnboarding(entry = `/original-sets/${ids.set}`) { return render(<MemoryRouter initialEntries={[entry]}><Routes><Route path="/original-sets/:originalSetId" element={<OriginalSetOnboarding />} /></Routes></MemoryRouter>) }
+function renderOnboarding(entry = `/original-sets/${ids.set}`, withDashboardLink = false) { return render(<MemoryRouter initialEntries={[entry]}>{withDashboardLink ? <Link to="/dashboard">Dashboard link</Link> : null}<Routes><Route path="/original-sets/:originalSetId" element={<OriginalSetOnboarding />} /><Route path="/dashboard" element={<p>Dashboard route</p>} /></Routes></MemoryRouter>) }
 
 test('derives the earliest incomplete Pieces stage from restored server detail after remount', async () => {
   server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
@@ -73,6 +73,42 @@ test('does not discard a dirty piece form when Back is declined', async () => {
   expect(screen.getByLabelText(/chest around/i)).toHaveValue('32')
 })
 
+test('prevents browser unload while a piece draft is dirty', async () => {
+  server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
+  const user = userEvent.setup()
+  renderOnboarding()
+  await user.type(await screen.findByLabelText(/chest around/i), '32')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const event = new Event('beforeunload', { cancelable: true })
+  expect(window.dispatchEvent(event)).toBe(false)
+  expect(event.defaultPrevented).toBe(true)
+})
+
+test('prevents same-origin router navigation when a dirty piece exit is declined', async () => {
+  server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  const user = userEvent.setup()
+  renderOnboarding(`/original-sets/${ids.set}`, true)
+  await user.type(await screen.findByLabelText(/chest around/i), '32')
+  await user.click(screen.getByRole('link', { name: /dashboard link/i }))
+  expect(confirm).toHaveBeenCalled()
+  expect(screen.queryByText('Dashboard route')).not.toBeInTheDocument()
+  vi.restoreAllMocks()
+})
+
+test('restores browser history when a dirty popstate exit is declined', async () => {
+  server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  const go = vi.spyOn(window.history, 'go').mockImplementation(() => undefined)
+  const user = userEvent.setup()
+  renderOnboarding()
+  await user.type(await screen.findByLabelText(/chest around/i), '32')
+  window.dispatchEvent(new PopStateEvent('popstate'))
+  expect(confirm).toHaveBeenCalled()
+  expect(go).toHaveBeenCalledWith(1)
+  vi.restoreAllMocks()
+})
+
 test('shows label feedback for first and repeated scans and refreshes its server state', async () => {
   let scans = 0
   server.use(
@@ -104,10 +140,28 @@ test('keeps an identity-mismatched set at Pieces and regenerates the missing exp
   expect(await screen.findByRole('button', { name: /generate expected pieces/i })).toBeVisible()
 })
 
+test('renders and saves required measurements for a manual piece outside design requirements', async () => {
+  const manualPieceId = '1e48d7f1-fdef-4b21-a2bb-9df4c7492d01'
+  const armDefinitionId = '1e48d7f1-fdef-4b21-a2bb-9df4c7492d02'
+  const manual = { ...item, id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492d03', pieceTypeId: manualPieceId, pieceSequence: 1, inventoryCode: 'YP-S04-MN', pieceType: { id: manualPieceId, code: 'MN', name: 'Manual sleeve', measurementDefinitions: [{ id: armDefinitionId, pieceTypeId: manualPieceId, code: 'ARM', label: 'Arm around', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }] } }
+  let saved: unknown
+  server.use(
+    http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json({ ...detail, inventoryItems: [item, manual] })),
+    http.patch('*/api/inventory-items/:inventoryItemId', async ({ request }) => { saved = await request.json(); return HttpResponse.json(manual) }),
+  )
+  const user = userEvent.setup()
+  renderOnboarding()
+  expect(await screen.findByText(/YP-S04-MN.*Added item/i)).toBeVisible()
+  await user.click(screen.getByRole('button', { name: /edit manual sleeve/i }))
+  await user.type(await screen.findByLabelText(/arm around/i), '12')
+  await user.click(screen.getByRole('button', { name: /save manual sleeve/i }))
+  expect(saved).toMatchObject({ measurements: [{ measurementDefinitionId: armDefinitionId, value: '12' }] })
+})
+
 test('keeps only one required-piece editor active at a time', async () => {
   const secondPieceId = '1e48d7f1-fdef-4b21-a2bb-9df4c7492db7'
   const secondDefinitionId = '1e48d7f1-fdef-4b21-a2bb-9df4c7492db8'
-  const second = { ...item, id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492db9', pieceTypeId: secondPieceId, pieceSequence: 1, inventoryCode: 'YP-S04-PF' }
+  const second = { ...item, id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492db9', pieceTypeId: secondPieceId, pieceSequence: 1, inventoryCode: 'YP-S04-PF', pieceType: { id: secondPieceId, code: 'PF', name: 'Pleated fan', measurementDefinitions: [{ id: secondDefinitionId, pieceTypeId: secondPieceId, code: 'WAIST', label: 'Waist around', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }] } }
   const multiPieceDetail = {
     ...detail,
     design: { ...detail.design, pieceRequirements: [...detail.design.pieceRequirements, { id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492dba', designId: ids.design, pieceTypeId: secondPieceId, quantity: 1, required: true, sortOrder: 1, pieceType: { id: secondPieceId, code: 'PF', name: 'Pleated fan', measurementDefinitions: [{ id: secondDefinitionId, pieceTypeId: secondPieceId, code: 'WAIST', label: 'Waist around', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }] } }] },

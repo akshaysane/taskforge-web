@@ -20,7 +20,7 @@ export interface OnboardingMeasurementDefinition {
 
 export interface OriginalSetDetail extends OriginalSetBase {
   design: { id: string; designCode: string; name: string; costumeType: string; primaryColor: string | null; secondaryColor: string | null; pieceRequirements: Array<{ id: string; designId: string; pieceTypeId: string; quantity: number; required: boolean; sortOrder: number; pieceType: { id: string; code: string; name: string; measurementDefinitions: OnboardingMeasurementDefinition[] } }> }
-  inventoryItems: Array<InventoryItem & { labelVerified: boolean }>
+  inventoryItems: Array<InventoryItem & { labelVerified: boolean; pieceType: { id: string; code: string; name: string; measurementDefinitions: OnboardingMeasurementDefinition[] } }>
   media: MediaLink[]
 }
 
