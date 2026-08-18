@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, useLocation } from 'react-router-dom'
+import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider } from 'react-router-dom'
 import AppShell from './components/app/AppShell'
 import LoadingState from './components/feedback/LoadingState'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -13,6 +13,10 @@ import { useAuthStore } from './store/auth'
 const Scan = lazy(() => import('./pages/Scan'))
 const OriginalSets = lazy(() => import('./pages/OriginalSets'))
 const OriginalSetOnboarding = lazy(() => import('./pages/OriginalSetOnboarding'))
+const InventoryList = lazy(() => import('./pages/InventoryList'))
+const InventoryCreate = lazy(() => import('./pages/InventoryCreate'))
+const InventoryDetail = lazy(() => import('./pages/InventoryDetail'))
+const AdminSettings = lazy(() => import('./pages/AdminSettings'))
 
 function PublicOnlyRoute() {
   const status = useAuthStore((state) => state.status)
@@ -21,15 +25,6 @@ function PublicOnlyRoute() {
   return <Outlet />
 }
 
-function RoutePlaceholder({ title }: { title: string }) {
-  return <div className="route-placeholder"><h1>{title}</h1></div>
-}
-
-function InventoryItemPlaceholder() {
-  const location = useLocation()
-  const verification = (location.state as { labelVerification?: string } | null)?.labelVerification
-  return <div className="route-placeholder"><h1>Inventory item</h1>{verification ? <p role="status">{verification}</p> : null}</div>
-}
 
 function AppBootstrap() {
   const bootstrap = useAuthStore((state) => state.bootstrap)
@@ -44,12 +39,12 @@ function AppBootstrap() {
 const router = createBrowserRouter(createRoutesFromElements(<Route element={<AppBootstrap />}>
   <Route element={<PublicOnlyRoute />}><Route path="/login" element={<Login />} /></Route>
   <Route element={<ProtectedRoute />}><Route element={<AppShell />}>
-    <Route path="/dashboard" element={<Dashboard />} /><Route path="/inventory" element={<RoutePlaceholder title="Inventory" />} />
-    <Route path="/scan" element={<Suspense fallback={<LoadingState label="Loading scanner" />}><Scan /></Suspense>} /><Route path="/inventory/:inventoryCode" element={<InventoryItemPlaceholder />} />
+    <Route path="/dashboard" element={<Dashboard />} /><Route path="/inventory" element={<Suspense fallback={<LoadingState label="Loading inventory" />}><InventoryList /></Suspense>} /><Route path="/inventory/new" element={<Suspense fallback={<LoadingState label="Loading inventory editor" />}><InventoryCreate /></Suspense>} />
+    <Route path="/scan" element={<Suspense fallback={<LoadingState label="Loading scanner" />}><Scan /></Suspense>} /><Route path="/inventory/:inventoryCode" element={<Suspense fallback={<LoadingState label="Loading inventory item" />}><InventoryDetail /></Suspense>} />
     <Route path="/onboarding" element={<Navigate to="/original-sets" replace />} /><Route path="/original-sets" element={<Suspense fallback={<LoadingState label="Loading original sets" />}><OriginalSets /></Suspense>} />
     <Route path="/original-sets/:originalSetId" element={<Suspense fallback={<LoadingState label="Loading original set" />}><OriginalSetOnboarding /></Suspense>} />
     <Route path="/designs" element={<Designs />} /><Route path="/designs/:designId" element={<DesignDetail />} /><Route path="/configuration" element={<InventorySettings />} />
-    <Route path="/administrators" element={<RoutePlaceholder title="Administrators" />} /><Route path="/more" element={<RoutePlaceholder title="More" />} />
+    <Route path="/administrators" element={<Suspense fallback={<LoadingState label="Loading administrators" />}><AdminSettings /></Suspense>} /><Route path="/more" element={<Navigate to="/original-sets" replace />} />
   </Route></Route><Route path="*" element={<Navigate to="/dashboard" replace />} />
 </Route>))
 

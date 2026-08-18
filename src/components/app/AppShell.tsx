@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useState } from 'react'
 import MobileNav from './MobileNav'
 import NavIcon from './NavIcon'
 
@@ -13,6 +14,7 @@ const navItems = [
 ] as const
 
 export default function AppShell() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
@@ -36,8 +38,9 @@ export default function AppShell() {
             <span>RasikaPriya</span>
             <small>Dance Shop</small>
           </a>
-          <span className="mobile-menu" aria-hidden="true">☰</span>
+          <button type="button" className="mobile-menu" aria-label="Open navigation menu" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((open) => !open)}>☰</button>
         </header>
+        {mobileMenuOpen ? <nav className="mobile-menu-panel" aria-label="More navigation">{navItems.filter(([label]) => !['Dashboard', 'Inventory', 'Scan', 'Onboarding'].includes(label)).map(([label, to]) => <NavLink key={to} to={to} onClick={() => setMobileMenuOpen(false)}>{label}</NavLink>)}</nav> : null}
         <main><Outlet /></main>
       </div>
       <MobileNav />

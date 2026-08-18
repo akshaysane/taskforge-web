@@ -33,3 +33,11 @@ test('retries failed lazy reads and removes an existing typed attachment', async
   expect(detached).toHaveBeenCalledOnce()
   expect(onChange).toHaveBeenCalledWith([])
 })
+
+test('keeps the attachment and announces a detach failure', async () => {
+  server.use(http.delete('*/api/inventory-items/:inventoryItemId/media/:mediaAssetId', () => HttpResponse.json({ message: 'Media is locked.' }, { status: 409 })))
+  const user = userEvent.setup()
+  render(<PhotoGallery photos={[photo]} ownerType="inventory-item" ownerId="item-1" onChange={vi.fn()} />)
+  await user.click(screen.getByRole('button', { name: /remove front reference/i }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/could not remove/i)
+})

@@ -14,6 +14,7 @@ export default function PhotoGallery({ photos, ownerType, ownerId, onChange, rea
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, boolean>>({})
   const [removing, setRemoving] = useState<Record<string, boolean>>({})
+  const [removeError, setRemoveError] = useState('')
 
   async function loadPhoto(photo: MediaLink) {
     if (readUrls[photo.mediaAssetId] || loading[photo.mediaAssetId]) return
@@ -30,10 +31,13 @@ export default function PhotoGallery({ photos, ownerType, ownerId, onChange, rea
   }
 
   async function removePhoto(photo: MediaLink) {
+    setRemoveError('')
     setRemoving((current) => ({ ...current, [photo.id]: true }))
     try {
       await detachMedia(ownerType, ownerId, photo.mediaAssetId)
       onChange(photos.filter((candidate) => candidate.id !== photo.id))
+    } catch {
+      setRemoveError('Could not remove this photo. Please retry.')
     } finally {
       setRemoving((current) => ({ ...current, [photo.id]: false }))
     }
@@ -42,6 +46,7 @@ export default function PhotoGallery({ photos, ownerType, ownerId, onChange, rea
   if (photos.length === 0) return null
   return <section className="photo-gallery" aria-label="Attached photos">
     <h2>Reference photos</h2>
+    {removeError ? <p className="field-error" role="alert">{removeError}</p> : null}
     <div className="photo-preview-grid">
       {photos.map((photo) => <figure key={photo.id} className="photo-preview">
         {readUrls[photo.mediaAssetId]
