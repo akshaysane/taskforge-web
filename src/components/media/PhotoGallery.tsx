@@ -6,9 +6,10 @@ interface PhotoGalleryProps {
   ownerType: MediaOwnerType
   ownerId: string
   onChange: (photos: MediaLink[]) => void
+  readOnly?: boolean
 }
 
-export default function PhotoGallery({ photos, ownerType, ownerId, onChange }: PhotoGalleryProps) {
+export default function PhotoGallery({ photos, ownerType, ownerId, onChange, readOnly = false }: PhotoGalleryProps) {
   const [readUrls, setReadUrls] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, boolean>>({})
@@ -48,7 +49,7 @@ export default function PhotoGallery({ photos, ownerType, ownerId, onChange }: P
           : <button type="button" className="button button-secondary" onClick={() => { void loadPhoto(photo) }} disabled={loading[photo.mediaAssetId]}>{loading[photo.mediaAssetId] ? 'Loading photo…' : 'Load photo'}</button>}
         {errors[photo.mediaAssetId] ? <div role="alert">Could not load this photo. <button type="button" onClick={() => { void loadPhoto(photo) }} aria-label={`Retry loading ${photo.caption || 'Reference photo'}`}>Retry</button></div> : null}
         {photo.caption ? <figcaption>{photo.caption}</figcaption> : null}
-        <button type="button" className="icon-button" aria-label={`Remove ${photo.caption || 'Reference photo'}`} disabled={removing[photo.id]} onClick={() => { void removePhoto(photo) }}>×</button>
+        {!readOnly ? <button type="button" className="icon-button" aria-label={`Remove ${photo.caption || 'Reference photo'}`} disabled={removing[photo.id]} onClick={() => { void removePhoto(photo) }}>×</button> : null}
       </figure>)}
     </div>
   </section>

@@ -244,6 +244,13 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 @media print {
+  body * { visibility: hidden; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+  .print-sheet { position: absolute; inset: 0; display: grid; width: 100%; gap: 12px; }
+  .print-sheet .verified-badge, .print-sheet .incomplete-badge, .print-sheet .qr-print-button, .print-sheet .field-error { display: none; }
+}
+
+@media print {
   @page { size: letter; margin: .35in; }
   body { background: #fff; }
   .app-sidebar, .mobile-brand, .mobile-nav, .page-header, .qr-print-button, .qr-label-section > .field-error { display: none !important; }

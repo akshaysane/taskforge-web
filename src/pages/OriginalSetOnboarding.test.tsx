@@ -37,8 +37,29 @@ test('keeps an independently edited piece value after its versioned save fails',
   renderOnboarding()
   await user.type(await screen.findByLabelText(/chest around/i), '32')
   await user.click(screen.getByRole('button', { name: /save blouse/i }))
-  expect(await screen.findByText(/updated by another request/i)).toBeVisible()
+  expect(await screen.findByText(/latest version was loaded/i)).toBeVisible()
   expect(screen.getByLabelText(/chest around/i)).toHaveValue('32')
+})
+
+test('refreshes the version after a conflict so the preserved draft can be retried', async () => {
+  let latest = detail
+  const submittedVersions: number[] = []
+  server.use(
+    http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(latest)),
+    http.patch('*/api/inventory-items/:inventoryItemId', async ({ request }) => {
+      submittedVersions.push((await request.json() as { version: number }).version)
+      if (submittedVersions.length === 1) { latest = { ...detail, inventoryItems: [{ ...item, version: 2 }] }; return HttpResponse.json({ code: 'INVENTORY_VERSION_CONFLICT', message: 'Inventory item was updated by another request.' }, { status: 409 }) }
+      return HttpResponse.json({ ...item, version: 3 })
+    }),
+  )
+  const user = userEvent.setup()
+  renderOnboarding()
+  await user.type(await screen.findByLabelText(/chest around/i), '32')
+  await user.click(screen.getByRole('button', { name: /save blouse/i }))
+  expect(await screen.findByText(/latest version was loaded/i)).toBeVisible()
+  expect(screen.getByLabelText(/chest around/i)).toHaveValue('32')
+  await user.click(screen.getByRole('button', { name: /save blouse/i }))
+  expect(submittedVersions).toEqual([1, 2])
 })
 
 test('does not discard a dirty piece form when Back is declined', async () => {
@@ -56,6 +77,7 @@ test('shows label feedback for first and repeated scans and refreshes its server
   let scans = 0
   server.use(
     http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json({ ...detail, inventoryItems: [{ ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] }] })),
+    http.get('*/api/inventory-items/by-code/:inventoryCode', () => HttpResponse.json({ ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] })),
     http.post('*/api/inventory-items/by-code/:inventoryCode/verify-label', () => HttpResponse.json({ alreadyVerified: scans++ > 0 })),
   )
   const user = userEvent.setup()
@@ -66,6 +88,85 @@ test('shows label feedback for first and repeated scans and refreshes its server
   expect(await screen.findByText('Label verified')).toBeVisible()
   await user.click(screen.getByRole('button', { name: /verify label/i }))
   expect(await screen.findByText('Already verified')).toBeVisible()
+})
+
+test('keeps an identity-mismatched set at Pieces and regenerates the missing expected item', async () => {
+  const wrongItem = { ...item, pieceSequence: 2, inventoryCode: 'YP-S04-BL-02' }
+  server.use(
+    http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json({ ...detail, inventoryItems: [wrongItem] })),
+    http.post('*/api/original-sets/:originalSetId/generate-items', () => HttpResponse.json({ created: 1, existing: 0 })),
+  )
+  const user = userEvent.setup()
+  renderOnboarding()
+  expect(await screen.findByText('0 of 1 pieces complete')).toBeVisible()
+  expect(screen.queryByText('YP-S04-BL-02')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: /generate expected pieces/i }))
+  expect(await screen.findByRole('button', { name: /generate expected pieces/i })).toBeVisible()
+})
+
+test('keeps only one required-piece editor active at a time', async () => {
+  const secondPieceId = '1e48d7f1-fdef-4b21-a2bb-9df4c7492db7'
+  const secondDefinitionId = '1e48d7f1-fdef-4b21-a2bb-9df4c7492db8'
+  const second = { ...item, id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492db9', pieceTypeId: secondPieceId, pieceSequence: 1, inventoryCode: 'YP-S04-PF' }
+  const multiPieceDetail = {
+    ...detail,
+    design: { ...detail.design, pieceRequirements: [...detail.design.pieceRequirements, { id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492dba', designId: ids.design, pieceTypeId: secondPieceId, quantity: 1, required: true, sortOrder: 1, pieceType: { id: secondPieceId, code: 'PF', name: 'Pleated fan', measurementDefinitions: [{ id: secondDefinitionId, pieceTypeId: secondPieceId, code: 'WAIST', label: 'Waist around', unit: 'INCH', matchMode: 'INFORMATIONAL', matchingGroup: null, defaultTolerance: null, requiredForItem: true, sortOrder: 0, active: true }] } }] },
+    inventoryItems: [item, second],
+  }
+  server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(multiPieceDetail)))
+  const user = userEvent.setup()
+  renderOnboarding()
+  expect(await screen.findByLabelText(/chest around/i)).toBeVisible()
+  expect(screen.queryByLabelText(/waist around/i)).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: /edit pleated fan/i }))
+  expect(await screen.findByLabelText(/waist around/i)).toBeVisible()
+  expect(screen.queryByLabelText(/chest around/i)).not.toBeInTheDocument()
+})
+
+test('rejects a scanned label that belongs to a different original set before verification', async () => {
+  const foreign = { ...item, originalSetId: '1e48d7f1-fdef-4b21-a2bb-9df4c7492db5', measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] }
+  let verified = false
+  server.use(
+    http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json({ ...detail, inventoryItems: [{ ...item, measurements: foreign.measurements }] })),
+    http.get('*/api/inventory-items/by-code/:inventoryCode', () => HttpResponse.json(foreign)),
+    http.post('*/api/inventory-items/by-code/:inventoryCode/verify-label', () => { verified = true; return HttpResponse.json({ alreadyVerified: false }) }),
+  )
+  const user = userEvent.setup()
+  renderOnboarding()
+  await user.type(await screen.findByLabelText(/manual code/i), 'YP-S04-BL')
+  await user.click(screen.getByRole('button', { name: /verify label/i }))
+  expect(await screen.findByText(/belongs to another original set/i)).toBeVisible()
+  expect(verified).toBe(false)
+})
+
+test('records every label before printing a full sheet', async () => {
+  const ready = { ...detail, inventoryItems: [{ ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] }] }
+  let audited = 0
+  const print = vi.spyOn(window, 'print').mockImplementation(() => undefined)
+  server.use(
+    http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(ready)),
+    http.post('*/api/inventory-items/:inventoryItemId/label-printed', () => { audited += 1; return new HttpResponse(null, { status: 204 }) }),
+  )
+  const user = userEvent.setup()
+  renderOnboarding()
+  await user.click(await screen.findByRole('button', { name: /print full sheet/i }))
+  expect(audited).toBe(1)
+  expect(print).toHaveBeenCalled()
+})
+
+test('does not open the print dialog when label-print audit recording fails', async () => {
+  const ready = { ...detail, inventoryItems: [{ ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] }] }
+  const print = vi.spyOn(window, 'print').mockImplementation(() => undefined)
+  print.mockClear()
+  server.use(
+    http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(ready)),
+    http.post('*/api/inventory-items/:inventoryItemId/label-printed', () => HttpResponse.json({ message: 'Audit unavailable.' }, { status: 500 })),
+  )
+  const user = userEvent.setup()
+  renderOnboarding()
+  await user.click(await screen.findByRole('button', { name: /print full sheet/i }))
+  expect(await screen.findByText(/unable to record label printing/i)).toBeVisible()
+  expect(print).not.toHaveBeenCalled()
 })
 
 test('renders exact verification blockers from the server and successful verification state', async () => {

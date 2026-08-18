@@ -26,17 +26,18 @@ test('creates the next set and navigates to its resumable onboarding route', asy
   expect(await screen.findByLabelText('location')).toHaveTextContent(`/original-sets/${set.id}`)
 })
 
-test('filters incomplete sets and routes Resume and verified sets to View', async () => {
+test('filters by design and routes verified sets to View', async () => {
+  const secondDesign = { ...design, id: '3e48d7f1-fdef-4b21-a2bb-9df4c7492db5', designCode: 'RB', name: 'Red Blouse' }
   server.use(
-    http.get('*/api/designs', () => HttpResponse.json([design])),
-    http.get('*/api/original-sets', () => HttpResponse.json([{ ...set, verifiedAt: '2026-08-17T01:00:00.000Z' }, set])),
+    http.get('*/api/designs', () => HttpResponse.json([design, secondDesign])),
+    http.get('*/api/original-sets', () => HttpResponse.json([{ ...set, verifiedAt: '2026-08-17T01:00:00.000Z' }, { ...set, id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492db5', originalSetCode: 'RB-S01', designId: secondDesign.id }])),
   )
   const user = userEvent.setup()
   render(<MemoryRouter><OriginalSets /><Location /></MemoryRouter>)
 
-  await user.selectOptions(await screen.findByLabelText(/status/i), 'INCOMPLETE')
+  await user.selectOptions(await screen.findByLabelText(/^design$/i), design.id)
   expect(screen.getByText('YP-S04')).toBeVisible()
-  expect(screen.getByRole('button', { name: /resume yp-s04/i })).toBeVisible()
-  await user.click(screen.getByRole('button', { name: /resume yp-s04/i }))
+  expect(screen.queryByText('RB-S01')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: /view yp-s04/i }))
   expect(screen.getByLabelText('location')).toHaveTextContent(`/original-sets/${set.id}`)
 })

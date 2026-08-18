@@ -7,6 +7,7 @@ export type OnboardingStage = 'SET' | 'PHOTO' | 'PIECES' | 'LABELS' | 'VERIFY'
 export interface OriginalSetSummary {
   id: string; designId: string; originalSetCode: string; sequenceNumber: number; notes: string | null
   verifiedAt: string | null; verifiedById: string | null; archivedAt: string | null; createdAt: string; updatedAt: string; inventoryItemCount: number
+  onboarding: { stage: Exclude<OnboardingStage, 'SET'>; progressPercent: number; expectedItemCount: number; generatedExpectedItemCount: number; activeItemCount: number; referencePhotoCount: number; requiredMeasurementCount: number; completedRequiredMeasurementCount: number; labelVerifiedCount: number }
 }
 
 export interface OnboardingMeasurementDefinition {
