@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter, useNavigate } from 'react-router-dom'
@@ -51,6 +51,43 @@ test('debounces URL-driven search, combines filters, and loads the cursor page',
   await user.click(screen.getByRole('button', { name: /load more/i }))
   expect(await screen.findByText('YP-S04-BL-02')).toBeVisible()
   expect(requests.at(-1)?.searchParams.getAll('measurement')).toEqual([`${chestDefinitionId}|32|`])
+})
+
+test('discards a delayed cursor page after the serialized search changes', async () => {
+  const requests: URL[] = []
+  let resolveOldPage!: () => void
+  const oldPageGate = new Promise<void>((resolve) => { resolveOldPage = resolve })
+  server.use(http.get('*/api/designs', () => HttpResponse.json([])), http.get('*/api/piece-types', () => HttpResponse.json([])), http.get('*/api/inventory-items', async ({ request }) => {
+    const url = new URL(request.url)
+    requests.push(url)
+    const query = url.searchParams.get('query')
+    const cursor = url.searchParams.get('cursor')
+    if (query === 'query-a' && !cursor) return HttpResponse.json({ items: [{ ...item, inventoryCode: 'QUERY-A-BASE' }], nextCursor: 'cursor-a' })
+    if (query === 'query-a' && cursor === 'cursor-a') {
+      await oldPageGate
+      return HttpResponse.json({ items: [{ ...item, id: 'old-page', inventoryCode: 'QUERY-A-OLD-PAGE' }], nextCursor: 'stale-cursor' })
+    }
+    if (query === 'query-b' && !cursor) return HttpResponse.json({ items: [{ ...item, id: 'query-b', inventoryCode: 'QUERY-B-BASE' }], nextCursor: 'cursor-b' })
+    if (query === 'query-b' && cursor === 'cursor-b') return HttpResponse.json({ items: [{ ...item, id: 'query-b-page', inventoryCode: 'QUERY-B-PAGE' }], nextCursor: null })
+    return HttpResponse.json({ message: `Unexpected search request: ${url.search}` }, { status: 500 })
+  }))
+  const user = userEvent.setup()
+  render(<MemoryRouter initialEntries={['/inventory?query=query-a']}><InventoryList /></MemoryRouter>)
+
+  expect(await screen.findByText('QUERY-A-BASE')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: /load more/i }))
+  const search = screen.getByRole('searchbox', { name: /search inventory/i })
+  await user.clear(search)
+  await user.type(search, 'query-b')
+  expect(await screen.findByText('QUERY-B-BASE')).toBeVisible()
+  await act(async () => { resolveOldPage(); await oldPageGate })
+  await waitFor(() => expect(screen.getByRole('button', { name: /load more/i })).toBeEnabled())
+  expect(screen.queryByText('QUERY-A-OLD-PAGE')).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: /load more/i }))
+  expect(await screen.findByText('QUERY-B-PAGE')).toBeVisible()
+  expect(requests.at(-1)?.searchParams.get('query')).toBe('query-b')
+  expect(requests.at(-1)?.searchParams.get('cursor')).toBe('cursor-b')
 })
 
 test('adds, removes, serializes, and preserves repeated labelled measurement filters', async () => {
@@ -147,4 +184,25 @@ test('shows a recoverable measurement-definition error', async () => {
   expect(await screen.findByText('Measurements unavailable.')).toBeVisible()
   await user.click(screen.getByRole('button', { name: /retry measurements/i }))
   expect(await screen.findByRole('button', { name: /add measurement filter/i })).toBeEnabled()
+})
+
+test('keeps inventory results visible while catalog metadata errors can be retried', async () => {
+  let designAttempt = 0
+  let pieceAttempt = 0
+  server.use(
+    http.get('*/api/designs', () => ++designAttempt === 1 ? HttpResponse.json({ message: 'Design catalog unavailable.' }, { status: 500 }) : HttpResponse.json([{ id: designId, designCode: 'YP', name: 'Yellow Purple', costumeType: 'Dhoti', primaryColor: null, secondaryColor: null, description: null, archivedAt: null, createdAt: item.createdAt, updatedAt: item.updatedAt, originalSetCount: 1, pieceRequirements: [], media: [] }])),
+    http.get('*/api/piece-types', () => ++pieceAttempt === 1 ? HttpResponse.json({ message: 'Piece catalog unavailable.' }, { status: 500 }) : HttpResponse.json([{ id: pieceTypeId, code: 'BL', name: 'Blouse', description: null, active: true, sortOrder: 1 }])),
+    http.get('*/api/inventory-items', () => HttpResponse.json({ items: [item], nextCursor: null })),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><InventoryList /></MemoryRouter>)
+
+  expect(await screen.findByText(item.inventoryCode)).toBeVisible()
+  expect(await screen.findByText(/Design catalog unavailable/)).toBeVisible()
+  expect(screen.getByText(/Piece catalog unavailable/)).toBeVisible()
+  await user.click(screen.getByRole('button', { name: /retry filter options/i }))
+  expect(await screen.findByRole('option', { name: 'YP — Yellow Purple' })).toBeVisible()
+  expect(screen.getByRole('option', { name: 'BL — Blouse' })).toBeVisible()
+  expect(screen.queryByText(/catalog unavailable/i)).not.toBeInTheDocument()
+  expect(screen.getByText(item.inventoryCode)).toBeVisible()
 })

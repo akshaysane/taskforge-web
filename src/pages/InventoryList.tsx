@@ -44,17 +44,35 @@ export default function InventoryList() {
   const [items, setItems] = useState<InventoryItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
+  const [pendingLoadMore, setPendingLoadMore] = useState<{ id: number; search: string } | null>(null)
   const [error, setError] = useState('')
   const [designs, setDesigns] = useState<Design[]>([])
   const [pieceTypes, setPieceTypes] = useState<PieceType[]>([])
+  const [catalogRetry, setCatalogRetry] = useState(0)
+  const [catalogResult, setCatalogResult] = useState<{ requestKey: number; error: string }>({ requestKey: -1, error: '' })
   const serialized = params.toString()
   const urlQuery = params.get('query') ?? ''
   const latestSerialized = useRef(serialized)
+  const baseRequestSequence = useRef(0)
+  const loadMoreSequence = useRef(0)
   latestSerialized.current = serialized
   const filters = useMemo(() => valuesFrom(new URLSearchParams(serialized)), [serialized])
+  const loadingMore = pendingLoadMore?.search === serialized
+  const catalogError = catalogResult.requestKey === catalogRetry ? catalogResult.error : ''
 
-  useEffect(() => { let active = true; void Promise.all([listDesigns(), listPieceTypes()]).then(([nextDesigns, nextPieceTypes]) => { if (active) { setDesigns(nextDesigns.filter((design) => !design.archivedAt)); setPieceTypes(nextPieceTypes.filter((piece) => piece.active)) } }).catch(() => undefined); return () => { active = false } }, [])
+  useEffect(() => {
+    let active = true
+    void Promise.allSettled([listDesigns(), listPieceTypes()]).then(([designResult, pieceTypeResult]) => {
+      if (!active) return
+      const errors: string[] = []
+      if (designResult.status === 'fulfilled') setDesigns(designResult.value.filter((design) => !design.archivedAt))
+      else errors.push(apiError(designResult.reason).message)
+      if (pieceTypeResult.status === 'fulfilled') setPieceTypes(pieceTypeResult.value.filter((piece) => piece.active))
+      else errors.push(apiError(pieceTypeResult.reason).message)
+      setCatalogResult({ requestKey: catalogRetry, error: errors.join(' ') })
+    })
+    return () => { active = false }
+  }, [catalogRetry])
 
   useEffect(() => {
     setDraftQuery((current) => current === urlQuery ? current : urlQuery)
@@ -76,10 +94,11 @@ export default function InventoryList() {
 
   useEffect(() => {
     let active = true
+    const requestSequence = ++baseRequestSequence.current
     setLoading(true); setError('')
     const query = inventorySearchFrom(new URLSearchParams(serialized))
     void listInventoryItems({ ...query, limit: 25 }).then((result) => {
-      if (active) { setItems(result.items); setNextCursor(result.nextCursor) }
+      if (active && baseRequestSequence.current === requestSequence) { setItems(result.items); setNextCursor(result.nextCursor) }
     }).catch((reason: unknown) => { if (active) setError(apiError(reason).message) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [serialized])
@@ -96,10 +115,29 @@ export default function InventoryList() {
   function clearFilters() { setDraftQuery(''); setParams(new URLSearchParams()) }
   async function loadMore() {
     if (!nextCursor) return
-    setLoadingMore(true)
-    try { const query = inventorySearchFrom(params); const result = await listInventoryItems({ ...query, cursor: nextCursor, limit: 25 }); setItems((current) => [...current, ...result.items]); setNextCursor(result.nextCursor) } catch (reason) { setError(apiError(reason).message) } finally { setLoadingMore(false) }
+    const requestSearch = serialized
+    const requestSequence = baseRequestSequence.current
+    const requestId = ++loadMoreSequence.current
+    setPendingLoadMore({ id: requestId, search: requestSearch })
+    try {
+      const query = inventorySearchFrom(new URLSearchParams(requestSearch))
+      const result = await listInventoryItems({ ...query, cursor: nextCursor, limit: 25 })
+      if (latestSerialized.current !== requestSearch || baseRequestSequence.current !== requestSequence) return
+      setItems((current) => [...current, ...result.items]); setNextCursor(result.nextCursor)
+    } catch (reason) {
+      if (latestSerialized.current === requestSearch && baseRequestSequence.current === requestSequence) setError(apiError(reason).message)
+    } finally {
+      setPendingLoadMore((current) => current?.id === requestId ? null : current)
+    }
   }
 
-  return <><PageHeader title="Inventory" actions={<><label className="search-field"><span className="sr-only">Search inventory</span><input type="search" value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} placeholder="Search code" /></label><Link className="button" to="/inventory/new">Add inventory</Link></>} />
-    <section className="inventory-page"><InventoryFilters value={filters} designs={designs} pieceTypes={pieceTypes} onChange={updateFilters} onReset={clearFilters} />{error ? <ErrorBanner message={error} /> : loading ? <LoadingState label="Loading inventory" /> : items.length === 0 ? <EmptyState title="No inventory items" description="Try clearing filters or add an item to an original set." /> : <div className="inventory-list">{items.map((item) => <InventoryCard key={item.id} item={item} />)}</div>}{!error && nextCursor ? <button className="button button-secondary" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? 'Loading…' : 'Load more'}</button> : null}</section></>
+  return <>
+    <PageHeader title="Inventory" actions={<><label className="search-field"><span className="sr-only">Search inventory</span><input type="search" value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} placeholder="Search code" /></label><Link className="button" to="/inventory/new">Add inventory</Link></>} />
+    <section className="inventory-page">
+      <InventoryFilters value={filters} designs={designs} pieceTypes={pieceTypes} onChange={updateFilters} onReset={clearFilters} />
+      {catalogError ? <div className="catalog-error"><ErrorBanner message={catalogError} /><button type="button" className="button button-secondary" onClick={() => setCatalogRetry((attempt) => attempt + 1)}>Retry filter options</button></div> : null}
+      {error ? <ErrorBanner message={error} /> : loading ? <LoadingState label="Loading inventory" /> : items.length === 0 ? <EmptyState title="No inventory items" description="Try clearing filters or add an item to an original set." /> : <div className="inventory-list">{items.map((item) => <InventoryCard key={item.id} item={item} />)}</div>}
+      {!error && nextCursor ? <button className="button button-secondary" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? 'Loading…' : 'Load more'}</button> : null}
+    </section>
+  </>
 }
