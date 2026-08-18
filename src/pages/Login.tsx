@@ -19,14 +19,14 @@ export default function Login() {
 
     try {
       const session = await loginUser({
-        email: String(formData.get('email') ?? ''),
+        username: String(formData.get('username') ?? ''),
         password: String(formData.get('password') ?? ''),
       })
       setSession(session.accessToken, session.user)
       navigate('/dashboard', { replace: true })
     } catch (requestError) {
       setError(requestError instanceof AxiosError && requestError.response?.status === 401
-        ? 'Invalid email or password.'
+        ? 'Invalid username or password.'
         : 'Unable to sign in. Please try again.')
     } finally {
       setIsSubmitting(false)
@@ -35,23 +35,23 @@ export default function Login() {
 
   return (
     <main className="login-page">
-      <section className="login-brand" aria-label="RasikaPriya Dance Shop">
+      <section className="login-brand" aria-label="SR Natiya Dance Shop">
         <div className="login-ornament" aria-hidden="true" />
         <div className="login-brand-copy">
-          <span>RasikaPriya</span>
+          <span>SR Natiya</span>
           <small>Dance Shop</small>
         </div>
       </section>
       <section className="login-form-panel" aria-labelledby="login-title">
         <div className="mobile-login-brand" aria-hidden="true">
-          <span>RasikaPriya</span>
+          <span>SR Natiya</span>
           <small>Dance Shop</small>
         </div>
         <h1 id="login-title">Welcome back</h1>
         <p>Sign in to manage costume inventory.</p>
         <form onSubmit={handleSubmit} noValidate>
-          <label htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" autoComplete="email" required />
+          <label htmlFor="username">Username</label>
+          <input id="username" name="username" type="text" autoComplete="username" autoCapitalize="none" spellCheck="false" required />
           <label htmlFor="password">Password</label>
           <input id="password" name="password" type="password" autoComplete="current-password" required />
           {error ? <ErrorBanner message={error} /> : null}

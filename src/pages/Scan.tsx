@@ -16,7 +16,7 @@ export default function Scan() {
   async function handleScan(rawValue: string) {
     const parsed = parseInventoryQrPayload(rawValue, window.location.origin)
     if (!parsed.ok) {
-      setError(parsed.reason === 'UNTRUSTED_ORIGIN' ? 'This QR code is not from RasikaPriya.' : 'Enter a valid inventory code.')
+      setError(parsed.reason === 'UNTRUSTED_ORIGIN' ? 'This QR code is not from SR Natiya.' : 'Enter a valid inventory code.')
       return false
     }
     setError('')

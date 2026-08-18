@@ -1,11 +1,11 @@
 import { devices, expect, test as base, type Page, type TestInfo } from '@playwright/test'
 
-const adminEmail = process.env.E2E_ADMIN_EMAIL ?? 'owner@rasikapriya.local'
-const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? 'rasikapriya-local-admin'
+const adminUsername = process.env.E2E_ADMIN_USERNAME ?? 'srnatiya-admin'
+const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? 'srnatiya-local-admin'
 
 async function authenticate(page: Page) {
   await page.goto('/login')
-  await page.getByLabel('Email').fill(adminEmail)
+  await page.getByLabel('Username').fill(adminUsername)
   await page.getByLabel('Password').fill(adminPassword)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
@@ -132,8 +132,8 @@ test('administrator account limit is enforced in the owner UI', async ({ sharedP
   await expect(page.getByText('Active administrator')).toHaveCount(2)
 
   await page.getByRole('button', { name: 'Add administrator' }).click()
-  await page.getByLabel('Name').fill('Third Administrator')
-  await page.getByLabel('Email').fill('third-local@example.com')
+  await page.getByLabel('Name', { exact: true }).fill('Third Administrator')
+  await page.getByLabel('Username').fill('third-local-admin')
   await page.getByLabel('Password').fill('local-acceptance-password')
   assertNoConsoleErrors()
   await page.getByRole('button', { name: 'Save administrator' }).click()

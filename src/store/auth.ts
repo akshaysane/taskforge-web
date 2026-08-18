@@ -3,7 +3,8 @@ import { refreshSession } from '../api/auth'
 
 export interface AdminUser {
   id: string
-  email: string
+  username: string
+  email: string | null
   name: string
   role: 'ADMIN'
 }

@@ -1,4 +1,4 @@
-# RasikaPriya Dance Shop Web
+# SR Natiya Dance Shop Web
 
 Mobile-first React application for administering Bharatanatyam costume inventory. The owner can onboard tailor sets, track individual labelled pieces and measurements, search inventory, upload photos, print or scan QR labels, change lifecycle status, and manage the two administrator accounts.
 
@@ -13,7 +13,7 @@ Mobile-first React application for administering Bharatanatyam costume inventory
 
 ## Local setup
 
-Requirements: Node.js 20+, pnpm 10+, and the RasikaPriya API running at `http://localhost:3000`.
+Requirements: Node.js 20+, pnpm 10+, and the SR Natiya API running at `http://localhost:3000`.
 
 ```bash
 pnpm install
@@ -23,8 +23,8 @@ VITE_API_URL=http://localhost:3000 pnpm dev
 Open `http://localhost:5173` and use one of the local seed accounts:
 
 ```text
-owner@rasikapriya.local      / rasikapriya-local-admin
-assistant@rasikapriya.local  / rasikapriya-local-admin
+srnatiya-admin      / srnatiya-local-admin
+srnatiya-assistant  / srnatiya-local-admin
 ```
 
 ## Commands
@@ -49,8 +49,8 @@ Override its defaults when needed:
 
 ```bash
 E2E_BASE_URL=http://localhost:5173 \
-E2E_ADMIN_EMAIL=owner@rasikapriya.local \
-E2E_ADMIN_PASSWORD=rasikapriya-local-admin \
+E2E_ADMIN_USERNAME=srnatiya-admin \
+E2E_ADMIN_PASSWORD=srnatiya-local-admin \
 pnpm test:e2e
 ```
 

@@ -1,5 +1,6 @@
 import apiClient from './client'
 import type { MediaLink } from './media'
+import { createRequestId } from '../lib/requestId'
 
 export interface InventoryItem {
   id: string
@@ -57,7 +58,7 @@ export async function listInventoryEvents(inventoryItemId: string): Promise<Inve
 export async function transitionInventoryLifecycle(inventoryItemId: string, input: { to: string; notes?: string; expectedVersion: number }): Promise<InventoryItem> { return (await apiClient.post<InventoryItem>(`/api/inventory-items/${inventoryItemId}/lifecycle-transitions`, input)).data }
 
 export async function recordLabelPrinted(inventoryItemId: string): Promise<void> {
-  await apiClient.post(`/api/inventory-items/${inventoryItemId}/label-printed`, { requestId: crypto.randomUUID() })
+  await apiClient.post(`/api/inventory-items/${inventoryItemId}/label-printed`, { requestId: createRequestId() })
 }
 
 export async function verifyInventoryLabel(inventoryCode: string): Promise<{ alreadyVerified: boolean }> {

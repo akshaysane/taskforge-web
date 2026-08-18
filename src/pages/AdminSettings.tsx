@@ -6,13 +6,106 @@ import AccessibleSheet from '../components/overlay/AccessibleSheet'
 import ErrorBanner from '../components/feedback/ErrorBanner'
 import LoadingState from '../components/feedback/LoadingState'
 
-type FormState = { name: string; email: string; password: string }
-const empty: FormState = { name: '', email: '', password: '' }
+type FormState = { name: string; username: string; email: string; password: string }
+
+const empty: FormState = { name: '', username: '', email: '', password: '' }
+
 export default function AdminSettings() {
-  const [users, setUsers] = useState<AdminUser[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [formError, setFormError] = useState(''); const [form, setForm] = useState<FormState | null>(null); const [editing, setEditing] = useState<AdminUser | null>(null); const [saving, setSaving] = useState(false)
-  useEffect(() => { let active = true; void listAdminUsers().then((next) => active && setUsers(next)).catch((reason) => active && setError(apiError(reason).message)).finally(() => active && setLoading(false)); return () => { active = false } }, [])
-  async function save(event: FormEvent) { event.preventDefault(); if (!form) return; setSaving(true); setError(''); setFormError(''); try { const saved = editing ? await updateAdminUser(editing.id, { name: form.name, email: form.email, ...(form.password ? { password: form.password } : {}) }) : await createAdminUser(form); setUsers((current) => editing ? current.map((user) => user.id === saved.id ? saved : user) : [...current, saved]); setForm(null); setEditing(null) } catch (reason) { setFormError(apiError(reason).message) } finally { setSaving(false) } }
-  async function setActive(user: AdminUser, active: boolean) { setError(''); try { const saved = await updateAdminUser(user.id, { active }); setUsers((current) => current.map((candidate) => candidate.id === saved.id ? saved : candidate)) } catch (reason) { const parsed = apiError(reason); setError(parsed.message.includes('active administrator') ? 'This is the last administrator and cannot be deactivated.' : parsed.message) } }
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
+  const [form, setForm] = useState<FormState | null>(null)
+  const [editing, setEditing] = useState<AdminUser | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    void listAdminUsers()
+      .then((next) => active && setUsers(next))
+      .catch((reason) => active && setError(apiError(reason).message))
+      .finally(() => active && setLoading(false))
+    return () => { active = false }
+  }, [])
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    if (!form) return
+    setSaving(true)
+    setError('')
+    setFormError('')
+    const input = {
+      name: form.name,
+      username: form.username,
+      email: form.email.trim() || null,
+      ...(form.password ? { password: form.password } : {}),
+    }
+    try {
+      const saved = editing
+        ? await updateAdminUser(editing.id, input)
+        : await createAdminUser({ ...input, password: form.password })
+      setUsers((current) => editing
+        ? current.map((user) => user.id === saved.id ? saved : user)
+        : [...current, saved])
+      setForm(null)
+      setEditing(null)
+    } catch (reason) {
+      setFormError(apiError(reason).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function setActive(user: AdminUser, active: boolean) {
+    setError('')
+    try {
+      const saved = await updateAdminUser(user.id, { active })
+      setUsers((current) => current.map((candidate) => candidate.id === saved.id ? saved : candidate))
+    } catch (reason) {
+      const parsed = apiError(reason)
+      setError(parsed.message.includes('active administrator')
+        ? 'This is the last administrator and cannot be deactivated.'
+        : parsed.message)
+    }
+  }
+
   if (loading) return <LoadingState label="Loading administrators" />
-  return <><PageHeader title="Administrators" actions={<button className="button" onClick={() => { setEditing(null); setFormError(''); setForm(empty) }}>Add administrator</button>} /><section className="admin-page">{error ? <ErrorBanner message={error} /> : null}<div className="data-table admin-table"><div className="table-header"><span>Name</span><span>Email</span><span>Role</span><span>Actions</span></div>{users.map((user) => <article className="table-row" key={user.id}><strong>{user.name}</strong><span>{user.email}</span><span>{user.active ? 'Active administrator' : 'Inactive administrator'}</span><span><button className="icon-button" aria-label={`Edit ${user.name}`} onClick={() => { setEditing(user); setFormError(''); setForm({ name: user.name, email: user.email, password: '' }) }}>Edit</button><button className="icon-button" aria-label={`${user.active ? 'Deactivate' : 'Reactivate'} ${user.name}`} onClick={() => void setActive(user, !user.active)}>{user.active ? 'Deactivate' : 'Reactivate'}</button></span></article>)}</div></section>{form ? <AccessibleSheet label={editing ? 'Edit administrator' : 'Add administrator'} onRequestClose={() => setForm(null)}><div className="editor-heading"><h1>{editing ? 'Edit administrator' : 'Add administrator'}</h1><button data-initial-focus className="icon-button" aria-label="Close administrator editor" onClick={() => setForm(null)}>×</button></div>{formError ? <ErrorBanner message={formError} /> : null}<form className="editor-form" onSubmit={save}><div className="editor-fields"><label>Name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label>{editing ? 'New password (optional)' : 'Password'}<input required={!editing} minLength={12} type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label></div><div className="editor-actions"><button className="button button-secondary" type="button" onClick={() => setForm(null)}>Cancel</button><button className="button" disabled={saving}>{saving ? 'Saving…' : 'Save administrator'}</button></div></form></AccessibleSheet> : null}</>
+
+  return <>
+    <PageHeader title="Administrators" actions={<button className="button" onClick={() => { setEditing(null); setFormError(''); setForm(empty) }}>Add administrator</button>} />
+    <section className="admin-page">
+      {error ? <ErrorBanner message={error} /> : null}
+      <div className="data-table admin-table">
+        <div className="table-header"><span>Name</span><span>Username / contact</span><span>Role</span><span>Actions</span></div>
+        {users.map((user) => <article className="table-row" key={user.id}>
+          <strong>{user.name}</strong>
+          <span><b>{user.username}</b>{user.email ? <small>{user.email}</small> : null}</span>
+          <span>{user.active ? 'Active administrator' : 'Inactive administrator'}</span>
+          <span>
+            <button className="icon-button" aria-label={`Edit ${user.name}`} onClick={() => { setEditing(user); setFormError(''); setForm({ name: user.name, username: user.username, email: user.email ?? '', password: '' }) }}>Edit</button>
+            <button className="icon-button" aria-label={`${user.active ? 'Deactivate' : 'Reactivate'} ${user.name}`} onClick={() => void setActive(user, !user.active)}>{user.active ? 'Deactivate' : 'Reactivate'}</button>
+          </span>
+        </article>)}
+      </div>
+    </section>
+    {form ? <AccessibleSheet label={editing ? 'Edit administrator' : 'Add administrator'} onRequestClose={() => setForm(null)}>
+      <div className="editor-heading">
+        <h1>{editing ? 'Edit administrator' : 'Add administrator'}</h1>
+        <button data-initial-focus className="icon-button" aria-label="Close administrator editor" onClick={() => setForm(null)}>×</button>
+      </div>
+      {formError ? <ErrorBanner message={formError} /> : null}
+      <form className="editor-form" onSubmit={save}>
+        <div className="editor-fields">
+          <label>Name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+          <label>Username<input required minLength={3} maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]" autoComplete="username" autoCapitalize="none" spellCheck="false" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} /></label>
+          <label>Email (optional)<input type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
+          <label>{editing ? 'New password (optional)' : 'Password'}<input required={!editing} minLength={12} type="password" autoComplete="new-password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label>
+        </div>
+        <div className="editor-actions">
+          <button className="button button-secondary" type="button" onClick={() => setForm(null)}>Cancel</button>
+          <button className="button" disabled={saving}>{saving ? 'Saving…' : 'Save administrator'}</button>
+        </div>
+      </form>
+    </AccessibleSheet> : null}
+  </>
 }

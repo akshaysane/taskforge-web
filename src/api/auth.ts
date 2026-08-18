@@ -3,7 +3,7 @@ import apiClient from './client'
 import type { AdminUser } from '../store/auth'
 
 export interface LoginInput {
-  email: string
+  username: string
   password: string
 }
 

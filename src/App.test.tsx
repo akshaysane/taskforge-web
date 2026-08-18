@@ -4,7 +4,7 @@ import { beforeEach, expect, test } from 'vitest'
 import App from './App'
 import { server } from './test/server'
 
-const admin = { id: 'admin-1', email: 'owner@example.com', name: 'Owner', role: 'ADMIN' }
+const admin = { id: 'admin-1', username: 'srnatiya-admin', email: null, name: 'Owner', role: 'ADMIN' }
 
 beforeEach(() => {
   window.history.replaceState({}, '', '/dashboard')
