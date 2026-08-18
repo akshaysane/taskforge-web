@@ -38,3 +38,10 @@ test('rejects same-origin deep links with query strings or fragments', () => {
   expect(parseInventoryQrPayload('https://app.example.com/inventory/YP-S04-BL#label', 'https://app.example.com'))
     .toEqual({ ok: false, reason: 'INVALID_CODE' })
 })
+
+test('rejects same-origin deep links with bare query and fragment delimiters', () => {
+  for (const suffix of ['?', '#', '?#']) {
+    expect(parseInventoryQrPayload(`https://app.example.com/inventory/YP-S04-BL${suffix}`, 'https://app.example.com'))
+      .toEqual({ ok: false, reason: 'INVALID_CODE' })
+  }
+})

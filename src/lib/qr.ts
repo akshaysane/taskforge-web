@@ -25,7 +25,7 @@ export function parseInventoryQrPayload(rawValue: string, allowedOrigin: string)
   }
 
   if (parsed.origin !== allowed.origin) return { ok: false, reason: 'UNTRUSTED_ORIGIN' }
-  if (parsed.search || parsed.hash) return { ok: false, reason: 'INVALID_CODE' }
+  if (parsed.search || parsed.hash || rawValue.includes('?') || rawValue.includes('#')) return { ok: false, reason: 'INVALID_CODE' }
   const match = /^\/inventory\/([^/]+)$/.exec(parsed.pathname)
   let inventoryCode: string | null = null
   if (match) {
