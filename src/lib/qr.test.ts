@@ -31,3 +31,10 @@ test('rejects a malformed URL-encoded code without throwing', () => {
   expect(parseInventoryQrPayload('https://app.example.com/inventory/%', 'https://app.example.com'))
     .toEqual({ ok: false, reason: 'INVALID_CODE' })
 })
+
+test('rejects same-origin deep links with query strings or fragments', () => {
+  expect(parseInventoryQrPayload('https://app.example.com/inventory/YP-S04-BL?source=label', 'https://app.example.com'))
+    .toEqual({ ok: false, reason: 'INVALID_CODE' })
+  expect(parseInventoryQrPayload('https://app.example.com/inventory/YP-S04-BL#label', 'https://app.example.com'))
+    .toEqual({ ok: false, reason: 'INVALID_CODE' })
+})

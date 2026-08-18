@@ -25,10 +25,12 @@ export default function Scan() {
     try {
       const item = await getInventoryItemByCode(parsed.inventoryCode)
       if (onboarding) {
-        await verifyInventoryLabel(item.inventoryCode)
-        setStatus('Already verified')
+        const verification = await verifyInventoryLabel(item.inventoryCode)
+        setStatus(verification.alreadyVerified ? 'Already verified' : 'Label verified')
+        navigate(`/inventory/${item.inventoryCode}`, { state: { labelVerification: verification.alreadyVerified ? 'Already verified' : 'Label verified' } })
+      } else {
+        navigate(`/inventory/${item.inventoryCode}`)
       }
-      navigate(`/inventory/${item.inventoryCode}`, { state: onboarding ? { labelVerification: 'Already verified' } : undefined })
       return true
     } catch (requestError) {
       if (axios.isAxiosError(requestError) && requestError.response?.status === 404) setError('ITEM_NOT_FOUND')

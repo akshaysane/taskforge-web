@@ -29,6 +29,6 @@ export async function recordLabelPrinted(inventoryItemId: string): Promise<void>
   await apiClient.post(`/api/inventory-items/${inventoryItemId}/label-printed`, { requestId: crypto.randomUUID() })
 }
 
-export async function verifyInventoryLabel(inventoryCode: string): Promise<void> {
-  await apiClient.post(`/api/inventory-items/by-code/${encodeURIComponent(inventoryCode)}/verify-label`)
+export async function verifyInventoryLabel(inventoryCode: string): Promise<{ alreadyVerified: boolean }> {
+  return (await apiClient.post<{ alreadyVerified: boolean }>(`/api/inventory-items/by-code/${encodeURIComponent(inventoryCode)}/verify-label`)).data
 }
