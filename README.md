@@ -43,7 +43,7 @@ Install the local Chromium runtime once before running browser tests:
 pnpm exec playwright install chromium
 ```
 
-The acceptance suite expects a seeded backend and checks both desktop and mobile layouts. It covers login, dashboard counts, inventory search/detail, manual QR lookup, lifecycle transitions, configuration navigation, photo persistence, and the two-administrator invariant.
+Keep both the seeded backend and `pnpm dev` frontend running in separate terminals, then run `pnpm test:e2e` from a third terminal. The suite checks both desktop and mobile layouts. It covers login, dashboard counts, inventory search/detail, manual QR lookup, lifecycle transitions, configuration navigation, photo persistence, and the two-administrator invariant.
 
 Override its defaults when needed:
 

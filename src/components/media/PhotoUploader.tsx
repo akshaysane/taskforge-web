@@ -5,7 +5,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 type UploadState = 'idle' | 'uploading' | 'failed' | 'ready'
-type PendingPhoto = { file: File; previewUrl: string; state: UploadState; link?: MediaLink }
+type PendingPhoto = { file: File; previewUrl: string; state: UploadState; sortOrder: number; link?: MediaLink }
 
 interface PhotoUploaderProps {
   ownerType: MediaOwnerType
@@ -42,7 +42,9 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
       const session = await createMediaUpload({ mimeType: file.type as 'image/jpeg' | 'image/png' | 'image/webp', byteSize: file.size })
       await uploadPresignedFile(session.upload.url, session.upload.headers, file)
       await completeMediaUpload(session.mediaAsset.id)
-      const link = await attachMedia(ownerType, ownerId, session.mediaAsset.id, purpose, photosRef.current.filter((photo) => photo.link).length)
+      const assignedSortOrder = photosRef.current.find((photo) => photo.file === file)?.sortOrder
+      if (assignedSortOrder === undefined) throw new Error('The selected photo is no longer pending.')
+      const link = await attachMedia(ownerType, ownerId, session.mediaAsset.id, purpose, assignedSortOrder)
       const next = photosRef.current.map((photo) => photo.file === file ? { ...photo, state: 'ready' as const, link } : photo)
       photosRef.current = next
       setPhotos(next)
@@ -62,7 +64,8 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
     const available = Math.max(0, maxPhotos - currentCount)
     const selected = valid.slice(0, available)
     if (valid.length > available) setError(`You can add up to ${maxPhotos} photos.`)
-    const pending = selected.map((file) => ({ file, previewUrl: URL.createObjectURL(file), state: 'idle' as const }))
+    const highestSortOrder = Math.max(-1, ...existingPhotos.map((photo) => photo.sortOrder), ...photosRef.current.map((photo) => photo.sortOrder))
+    const pending = selected.map((file, index) => ({ file, previewUrl: URL.createObjectURL(file), state: 'idle' as const, sortOrder: highestSortOrder + index + 1 }))
     const next = [...photosRef.current, ...pending]
     photosRef.current = next
     setPhotos(next)

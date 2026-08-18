@@ -97,3 +97,39 @@ test('notifies a stateful parent after upload without a render-time state update
   await waitFor(() => expect(parentChange).toHaveBeenCalled())
   expect(consoleError.mock.calls.map(([message]) => String(message))).not.toContain(expect.stringContaining('Cannot update a component'))
 })
+
+test('preserves selected photo ordering when parallel uploads complete out of order', async () => {
+  let uploadNumber = 0
+  let releaseFirstUpload: () => void = () => undefined
+  const firstUploadReleased = new Promise<void>((resolve) => { releaseFirstUpload = resolve })
+  const attached: Array<{ mediaAssetId: string; sortOrder: number }> = []
+  server.use(
+    http.post('*/api/media/uploads', async ({ request }) => {
+      const sequence = ++uploadNumber
+      const input = await request.json() as { byteSize: number }
+      const id = `asset-${sequence}`
+      return HttpResponse.json({ mediaAsset: { ...mediaAsset, id, byteSize: input.byteSize, uploadStatus: 'PENDING' }, upload: { url: `https://uploads.example/${id}`, method: 'PUT', headers: { 'content-type': 'image/jpeg' }, expiresAt: '2026-08-17T00:05:00.000Z' } }, { status: 201 })
+    }),
+    http.put('https://uploads.example/asset-1', async () => { await firstUploadReleased; return new HttpResponse(null, { status: 200 }) }),
+    http.put('https://uploads.example/asset-2', () => new HttpResponse(null, { status: 200 })),
+    http.post('*/api/media/:mediaAssetId/complete', ({ params }) => HttpResponse.json({ ...mediaAsset, id: String(params.mediaAssetId) })),
+    http.post('*/api/designs/:designId/media/:mediaAssetId', async ({ params, request }) => {
+      const input = await request.json() as { sortOrder: number }
+      attached.push({ mediaAssetId: String(params.mediaAssetId), sortOrder: input.sortOrder })
+      return HttpResponse.json({ id: `link-${params.mediaAssetId}`, mediaAssetId: params.mediaAssetId, purpose: 'REFERENCE', caption: null, sortOrder: input.sortOrder, mediaAsset: { ...mediaAsset, id: params.mediaAssetId } }, { status: 201 })
+    }),
+  )
+  vi.spyOn(URL, 'createObjectURL').mockImplementation((file) => `blob:${(file as File).name}`)
+  const user = userEvent.setup()
+  render(<PhotoUploader ownerType="design" ownerId="design-1" purpose="REFERENCE" maxPhotos={3} onChange={() => undefined} />)
+
+  await user.upload(screen.getByLabelText(/add photo/i), [
+    new File(['first'], 'first.jpg', { type: 'image/jpeg' }),
+    new File(['second'], 'second.jpg', { type: 'image/jpeg' }),
+  ])
+  await waitFor(() => expect(attached).toHaveLength(1))
+  expect(attached[0]).toEqual({ mediaAssetId: 'asset-2', sortOrder: 1 })
+  releaseFirstUpload()
+  await waitFor(() => expect(attached).toHaveLength(2))
+  expect(attached).toContainEqual({ mediaAssetId: 'asset-1', sortOrder: 0 })
+})

@@ -1,13 +1,30 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { devices, expect, test as base, type Page, type TestInfo } from '@playwright/test'
 
 const adminEmail = process.env.E2E_ADMIN_EMAIL ?? 'owner@rasikapriya.local'
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? 'rasikapriya-local-admin'
 
-async function login(page: Page) {
+async function authenticate(page: Page) {
   await page.goto('/login')
   await page.getByLabel('Email').fill(adminEmail)
   await page.getByLabel('Password').fill(adminPassword)
   await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page.getByRole('heading', { name: 'Inventory Dashboard' })).toBeVisible()
+}
+
+const test = base.extend<Record<never, never>, { sharedPage: Page }>({
+  sharedPage: [async ({ browser }, use, workerInfo) => {
+    const device = workerInfo.project.name === 'mobile-chromium' ? devices['Pixel 7'] : devices['Desktop Chrome']
+    const context = await browser.newContext({ ...device, baseURL: String(workerInfo.project.use.baseURL) })
+    const page = await context.newPage()
+    await authenticate(page)
+    await use(page)
+    await context.close()
+  }, { scope: 'worker' }],
+})
+
+async function login(page: Page) {
+  await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.getByRole('heading', { name: 'Inventory Dashboard' })).toBeVisible()
 }
@@ -25,7 +42,29 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true })
 }
 
-test('owner can inspect seeded inventory and open an item by manual scan', async ({ page }, testInfo) => {
+async function normalizeAcceptanceItemLifecycle(page: Page) {
+  await page.goto('/inventory/YP-S01-BL')
+  await expect(page.getByRole('heading', { name: 'YP-S01-BL' })).toBeVisible()
+  if (await page.getByText('Cleaning', { exact: true }).isVisible().catch(() => false)) {
+    await page.getByRole('combobox', { name: 'Change lifecycle' }).selectOption('ACTIVE')
+    await page.getByRole('button', { name: 'Change lifecycle' }).click()
+    await page.getByRole('button', { name: 'Confirm lifecycle' }).click()
+    await expect(page.getByText('Active', { exact: true })).toBeVisible()
+  }
+}
+
+async function removeAcceptanceItemPhotos(page: Page) {
+  await page.goto('/inventory/YP-S01-BL')
+  await expect(page.getByRole('heading', { name: 'YP-S01-BL' })).toBeVisible()
+  const removeButtons = page.getByRole('button', { name: 'Remove Reference photo' })
+  while (await removeButtons.count()) {
+    const count = await removeButtons.count()
+    await removeButtons.first().click()
+    await expect(removeButtons).toHaveCount(count - 1)
+  }
+}
+
+test('owner can inspect seeded inventory and open an item by manual scan', async ({ sharedPage: page }, testInfo) => {
   await login(page)
   const assertNoConsoleErrors = failOnConsoleErrors(page)
 
@@ -54,7 +93,7 @@ test('owner can inspect seeded inventory and open an item by manual scan', async
   assertNoConsoleErrors()
 })
 
-test('mobile navigation reaches owner configuration screens', async ({ page }, testInfo) => {
+test('mobile navigation reaches owner configuration screens', async ({ sharedPage: page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Mobile-only navigation acceptance')
   await login(page)
   const assertNoConsoleErrors = failOnConsoleErrors(page)
@@ -67,27 +106,24 @@ test('mobile navigation reaches owner configuration screens', async ({ page }, t
   assertNoConsoleErrors()
 })
 
-test('inventory lifecycle changes are reversible and recorded', async ({ page }) => {
+test('inventory lifecycle changes are reversible and recorded', async ({ sharedPage: page }) => {
   test.skip(test.info().project.name !== 'desktop-chromium', 'Run this stateful workflow once')
   await login(page)
   const assertNoConsoleErrors = failOnConsoleErrors(page)
-  await page.goto('/inventory/YP-S01-BL')
-  await expect(page.getByRole('heading', { name: 'YP-S01-BL' })).toBeVisible()
-
-  await page.getByRole('combobox', { name: 'Change lifecycle' }).selectOption('CLEANING')
-  await page.getByRole('button', { name: 'Change lifecycle' }).click()
-  await page.getByRole('button', { name: 'Confirm lifecycle' }).click()
-  await expect(page.getByText('Cleaning', { exact: true })).toBeVisible()
-  await expect(page.getByRole('list').filter({ hasText: 'LIFECYCLE CHANGED' })).toBeVisible()
-
-  await page.getByRole('combobox', { name: 'Change lifecycle' }).selectOption('ACTIVE')
-  await page.getByRole('button', { name: 'Change lifecycle' }).click()
-  await page.getByRole('button', { name: 'Confirm lifecycle' }).click()
-  await expect(page.getByText('Active', { exact: true })).toBeVisible()
+  await normalizeAcceptanceItemLifecycle(page)
+  try {
+    await page.getByRole('combobox', { name: 'Change lifecycle' }).selectOption('CLEANING')
+    await page.getByRole('button', { name: 'Change lifecycle' }).click()
+    await page.getByRole('button', { name: 'Confirm lifecycle' }).click()
+    await expect(page.getByText('Cleaning', { exact: true })).toBeVisible()
+    await expect(page.getByRole('list').filter({ hasText: 'LIFECYCLE CHANGED' })).toBeVisible()
+  } finally {
+    await normalizeAcceptanceItemLifecycle(page)
+  }
   assertNoConsoleErrors()
 })
 
-test('administrator account limit is enforced in the owner UI', async ({ page }) => {
+test('administrator account limit is enforced in the owner UI', async ({ sharedPage: page }) => {
   test.skip(test.info().project.name !== 'desktop-chromium', 'Run this invariant once')
   await login(page)
   const assertNoConsoleErrors = failOnConsoleErrors(page)
@@ -105,30 +141,31 @@ test('administrator account limit is enforced in the owner UI', async ({ page })
   await expect(page.getByText('Active administrator')).toHaveCount(2)
 })
 
-test('a local costume photo survives reload and can be removed', async ({ page }, testInfo) => {
+test('a local costume photo survives reload and can be removed', async ({ sharedPage: page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Run this stateful workflow once')
   await login(page)
   const assertNoConsoleErrors = failOnConsoleErrors(page)
-  await page.goto('/inventory/YP-S01-BL')
-  await expect(page.getByRole('heading', { name: 'YP-S01-BL' })).toBeVisible()
+  await removeAcceptanceItemPhotos(page)
+  try {
+    await page.getByLabel('Add photo').setInputFiles({
+      name: 'acceptance-costume.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YKmvCsAAAAASUVORK5CYII=', 'base64'),
+    })
+    await expect(page.getByRole('button', { name: 'Load photo' })).toBeVisible()
 
-  await page.getByLabel('Add photo').setInputFiles({
-    name: 'acceptance-costume.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YKmvCsAAAAASUVORK5CYII=', 'base64'),
-  })
-  await expect(page.getByRole('button', { name: 'Load photo' })).toBeVisible()
-
-  await page.reload()
-  await page.getByRole('button', { name: 'Load photo' }).click()
-  await expect(page.getByRole('img', { name: 'Reference photo' })).toBeVisible()
-  await capture(page, testInfo, 'inventory-photo')
-  await page.getByRole('button', { name: 'Remove Reference photo' }).click()
+    await page.reload()
+    await page.getByRole('button', { name: 'Load photo' }).click()
+    await expect(page.getByRole('img', { name: 'Reference photo' })).toBeVisible()
+    await capture(page, testInfo, 'inventory-photo')
+  } finally {
+    await removeAcceptanceItemPhotos(page)
+  }
   await expect(page.getByRole('region', { name: 'Attached photos' })).toHaveCount(0)
   assertNoConsoleErrors()
 })
 
-test('printing a QR label records an audit event before print', async ({ page }) => {
+test('printing a QR label records an audit event before print', async ({ sharedPage: page }) => {
   test.skip(test.info().project.name !== 'desktop-chromium', 'Run this stateful workflow once')
   await login(page)
   const assertNoConsoleErrors = failOnConsoleErrors(page)
@@ -142,7 +179,7 @@ test('printing a QR label records an audit event before print', async ({ page })
   assertNoConsoleErrors()
 })
 
-test('owner can resume an incomplete original-set onboarding workflow', async ({ page }) => {
+test('owner can resume an incomplete original-set onboarding workflow', async ({ sharedPage: page }) => {
   test.skip(test.info().project.name !== 'desktop-chromium', 'Run this workflow once')
   await login(page)
   const assertNoConsoleErrors = failOnConsoleErrors(page)
