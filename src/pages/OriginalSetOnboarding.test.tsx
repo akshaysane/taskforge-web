@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
+import { createMemoryRouter, Link, Outlet, RouterProvider } from 'react-router-dom'
 import { expect, test, vi } from 'vitest'
 import OriginalSetOnboarding from './OriginalSetOnboarding'
 import { server } from '../test/server'
@@ -14,7 +14,11 @@ const detail = {
   inventoryItems: [item], media: [{ id: 'link', mediaAssetId: ids.photo, purpose: 'REFERENCE', caption: null, sortOrder: 0, mediaAsset: { id: ids.photo, objectKey: 'photo.jpg', mimeType: 'image/jpeg', byteSize: 20, checksum: null, uploadStatus: 'READY', uploadedById: ids.design, createdAt: item.createdAt, updatedAt: item.updatedAt } }],
 }
 
-function renderOnboarding(entry = `/original-sets/${ids.set}`, withDashboardLink = false) { return render(<MemoryRouter initialEntries={[entry]}>{withDashboardLink ? <Link to="/dashboard">Dashboard link</Link> : null}<Routes><Route path="/original-sets/:originalSetId" element={<OriginalSetOnboarding />} /><Route path="/dashboard" element={<p>Dashboard route</p>} /></Routes></MemoryRouter>) }
+function TestLayout({ withDashboardLink }: { withDashboardLink: boolean }) { return <>{withDashboardLink ? <Link to="/dashboard">Dashboard link</Link> : null}<Outlet /></> }
+function renderOnboarding(entry: string | string[] = `/original-sets/${ids.set}`, withDashboardLink = false, initialIndex?: number) {
+  const router = createMemoryRouter([{ element: <TestLayout withDashboardLink={withDashboardLink} />, children: [{ path: '/original-sets/:originalSetId', element: <OriginalSetOnboarding /> }, { path: '/dashboard', element: <p>Dashboard route</p> }] }], { initialEntries: Array.isArray(entry) ? entry : [entry], initialIndex })
+  return { ...render(<RouterProvider router={router} />), router }
+}
 
 test('derives the earliest incomplete Pieces stage from restored server detail after remount', async () => {
   server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
@@ -96,16 +100,29 @@ test('prevents same-origin router navigation when a dirty piece exit is declined
   vi.restoreAllMocks()
 })
 
-test('restores browser history when a dirty popstate exit is declined', async () => {
+test('keeps dirty onboarding in place when Back or Forward is declined', async () => {
   server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-  const go = vi.spyOn(window.history, 'go').mockImplementation(() => undefined)
   const user = userEvent.setup()
-  renderOnboarding()
+  const { router } = renderOnboarding(['/dashboard', `/original-sets/${ids.set}`, '/dashboard'], false, 1)
   await user.type(await screen.findByLabelText(/chest around/i), '32')
-  window.dispatchEvent(new PopStateEvent('popstate'))
-  expect(confirm).toHaveBeenCalled()
-  expect(go).toHaveBeenCalledWith(1)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await act(async () => { await router.navigate(-1) })
+  expect(router.state.location.pathname).toBe(`/original-sets/${ids.set}`)
+  await act(async () => { await router.navigate(1) })
+  expect(router.state.location.pathname).toBe(`/original-sets/${ids.set}`)
+  expect(confirm).toHaveBeenCalledTimes(2)
+  vi.restoreAllMocks()
+})
+
+test('allows accepted programmatic router navigation from dirty onboarding', async () => {
+  server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const user = userEvent.setup()
+  const { router } = renderOnboarding()
+  await user.type(await screen.findByLabelText(/chest around/i), '32')
+  await router.navigate('/dashboard')
+  expect(await screen.findByText('Dashboard route')).toBeVisible()
   vi.restoreAllMocks()
 })
 

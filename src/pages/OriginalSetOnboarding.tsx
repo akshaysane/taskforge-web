@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { useBeforeUnload, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { apiError } from '../api/designs'
 import { getInventoryItemByCode, recordLabelPrinted, updateInventoryItem, verifyInventoryLabel, type InventoryItem } from '../api/inventory'
 import { generateExpectedItems, getOriginalSet, verifyOriginalSet, type OnboardingStage, type OriginalSetDetail } from '../api/original-sets'
@@ -66,18 +66,11 @@ export default function OriginalSetOnboarding() {
   const [activePieceId, setActivePieceId] = useState('')
 
   const hasDirtyDraft = Object.values(dirty).some(Boolean)
-  const dirtyRef = useRef(false)
-  dirtyRef.current = hasDirtyDraft
+  const blocker = useBlocker(hasDirtyDraft)
+  useBeforeUnload((event) => { if (hasDirtyDraft) { event.preventDefault(); event.returnValue = 'Unsaved piece changes' } })
   useEffect(() => {
-    const message = 'You have unsaved piece changes. Leave this set?'
-    const beforeUnload = (event: BeforeUnloadEvent) => { if (dirtyRef.current) { event.preventDefault(); event.returnValue = 'Unsaved piece changes' } }
-    const click = (event: MouseEvent) => { const anchor = (event.target as Element | null)?.closest('a[href]') as HTMLAnchorElement | null; if (dirtyRef.current && anchor && anchor.origin === window.location.origin && !window.confirm(message)) event.preventDefault() }
-    const popstate = () => { if (dirtyRef.current && !window.confirm(message)) window.history.go(1) }
-    window.addEventListener('beforeunload', beforeUnload)
-    document.addEventListener('click', click, true)
-    window.addEventListener('popstate', popstate)
-    return () => { window.removeEventListener('beforeunload', beforeUnload); document.removeEventListener('click', click, true); window.removeEventListener('popstate', popstate) }
-  }, [])
+    if (blocker.state === 'blocked') { if (window.confirm('You have unsaved piece changes. Leave this set?')) blocker.proceed(); else blocker.reset() }
+  }, [blocker])
 
   const refresh = async () => { const next = await getOriginalSet(originalSetId); setDetail(next); setDrafts((current) => Object.fromEntries(next.inventoryItems.map((item) => [item.id, current[item.id] ?? draftFor(item)]))) }
   useEffect(() => { let active = true; void getOriginalSet(originalSetId).then((next) => { if (!active) return; setDetail(next); setDrafts(Object.fromEntries(next.inventoryItems.map((item) => [item.id, draftFor(item)]))) }).catch((reason: unknown) => { if (active) setError(apiError(reason).message) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [originalSetId])
