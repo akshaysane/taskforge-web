@@ -17,4 +17,5 @@ test('renders a dashboard error state', async () => {
   server.use(http.get('*/api/dashboard/inventory-summary', () => HttpResponse.json({ message: 'Dashboard unavailable.' }, { status: 500 })))
   render(<MemoryRouter><Dashboard /></MemoryRouter>)
   expect(await screen.findByText('Dashboard unavailable.')).toBeVisible()
+  expect(screen.queryByText(/loading inventory overview/i)).not.toBeInTheDocument()
 })
