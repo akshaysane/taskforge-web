@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -10,6 +10,7 @@ const item = { id: '11111111-1111-4111-8111-111111111111', originalSetId: '22222
 
 function renderDetail() { return render(<MemoryRouter initialEntries={['/inventory/YP-S04-BL-01']}><Routes><Route path="/inventory/:inventoryCode" element={<InventoryDetail />} /></Routes></MemoryRouter>) }
 function DetailRoutes() { return <><Link to="/inventory/YP-S04-BL-02">Second item</Link><Routes><Route path="/inventory/:inventoryCode" element={<InventoryDetail />} /></Routes></> }
+function RaceDetailRoutes() { return <><Link to="/inventory/YP-S04-BL-01">First item</Link><Link to="/inventory/YP-S04-BL-02">Second item</Link><Routes><Route path="/inventory/:inventoryCode" element={<InventoryDetail />} /></Routes></> }
 
 test('shows immutable identity, measurements, history, QR label and saves a mutable update', async () => {
   let updateBody: Record<string, unknown> | undefined
@@ -154,4 +155,46 @@ test('merges a base lifecycle response and refreshes the lifecycle note in histo
   expect(screen.getByText(/notes: sent to repair/i)).toBeVisible()
   expect(screen.getByText('Yellow Purple')).toBeVisible()
   expect(screen.getByText('Blouse')).toBeVisible()
+})
+
+test('does not let a slow prior inventory-code load overwrite the current route item', async () => {
+  const second = { ...item, id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', inventoryCode: 'YP-S04-BL-02', notes: 'Second item note' }
+  const third = { ...item, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', inventoryCode: 'YP-S04-BL-03', notes: 'Third item note' }
+  let resolveFirstIdentity: ((response: Response) => void) | undefined
+  let resolveFirstEvents: ((response: Response) => void) | undefined
+  server.use(
+    http.get('*/api/inventory-items/by-code/:code', ({ params }) => params.code === item.inventoryCode ? new Promise<Response>((resolve) => { resolveFirstIdentity = resolve }) : HttpResponse.json(params.code === second.inventoryCode ? second : third)),
+    http.get('*/api/inventory-items/:id', ({ params }) => HttpResponse.json(params.id === item.id ? item : params.id === second.id ? second : third)),
+    http.get('*/api/inventory-items/:id/events', ({ params }) => params.id === item.id ? new Promise<Response>((resolve) => { resolveFirstEvents = resolve }) : HttpResponse.json([])),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter initialEntries={[`/inventory/${third.inventoryCode}`]}><RaceDetailRoutes /></MemoryRouter>)
+  await screen.findByRole('heading', { name: third.inventoryCode })
+  await user.click(screen.getByRole('link', { name: /first item/i }))
+  await waitFor(() => expect(resolveFirstIdentity).toBeTypeOf('function'))
+  await user.click(screen.getByRole('link', { name: /second item/i }))
+  expect(await screen.findByRole('heading', { name: second.inventoryCode })).toBeVisible()
+  await act(async () => { resolveFirstIdentity?.(HttpResponse.json(item)); await Promise.resolve() })
+  await waitFor(() => expect(resolveFirstEvents).toBeTypeOf('function'))
+  await act(async () => { resolveFirstEvents?.(HttpResponse.json([])); await Promise.resolve() })
+  expect(screen.getByRole('heading', { name: second.inventoryCode })).toBeVisible()
+  expect(screen.getByLabelText(/notes/i)).toHaveValue('Second item note')
+})
+
+test('keeps a successful save and reports a non-blocking history refresh error', async () => {
+  let eventReads = 0
+  server.use(
+    http.get('*/api/inventory-items/by-code/:code', () => HttpResponse.json(item)),
+    http.get('*/api/inventory-items/:id', () => HttpResponse.json(item)),
+    http.get('*/api/inventory-items/:id/events', () => eventReads++ ? HttpResponse.json({ message: 'History service unavailable.' }, { status: 500 }) : HttpResponse.json([])),
+    http.patch('*/api/inventory-items/:id', () => HttpResponse.json({ ...item, notes: 'Saved despite history outage', version: 3 })),
+  )
+  const user = userEvent.setup()
+  renderDetail()
+  await screen.findByRole('heading', { name: item.inventoryCode })
+  await user.type(screen.getByLabelText(/notes/i), 'Saved despite history outage')
+  await user.click(screen.getByRole('button', { name: /save overview/i }))
+  expect(await screen.findByText(/saved, but history could not be refreshed/i)).toBeVisible()
+  expect(screen.getByLabelText(/notes/i)).toHaveValue('Saved despite history outage')
+  expect(screen.queryByText('History service unavailable.')).not.toBeInTheDocument()
 })
