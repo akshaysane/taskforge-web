@@ -118,7 +118,7 @@ export default function OriginalSetOnboarding() {
   async function verify() { setError(''); try { await verifyOriginalSet(originalSetId); await refresh() } catch (reason) { const parsed = apiError(reason); const source = reason as { response?: { data?: { blockers?: string[] } } }; const blockers = source.response?.data?.blockers; setError(blockers?.length ? `Incomplete: ${blockers.map((blocker) => blocker.replaceAll('_', ' ').toLowerCase()).join(', ')}` : parsed.message) } }
   const setPhotos = (next: MediaLink[]) => { if (detail) setDetail({ ...detail, media: [...detail.media.filter((photo) => photo.purpose !== 'REFERENCE'), ...next] }) }
   const title = detail ? `Original set ${detail.originalSetCode}` : 'Original set'
-  function backToList() { if (hasDirtyDraft && !window.confirm('You have unsaved piece changes. Leave this set?')) return; navigate('/original-sets') }
+  function backToList() { navigate('/original-sets') }
 
   if (loading) return <LoadingState label="Loading original set" />
   if (!detail) return <main className="onboarding-page"><ErrorBanner message={error || 'Original set not found.'} /></main>

@@ -16,7 +16,7 @@ const detail = {
 
 function TestLayout({ withDashboardLink }: { withDashboardLink: boolean }) { return <>{withDashboardLink ? <Link to="/dashboard">Dashboard link</Link> : null}<Outlet /></> }
 function renderOnboarding(entry: string | string[] = `/original-sets/${ids.set}`, withDashboardLink = false, initialIndex?: number) {
-  const router = createMemoryRouter([{ element: <TestLayout withDashboardLink={withDashboardLink} />, children: [{ path: '/original-sets/:originalSetId', element: <OriginalSetOnboarding /> }, { path: '/dashboard', element: <p>Dashboard route</p> }] }], { initialEntries: Array.isArray(entry) ? entry : [entry], initialIndex })
+  const router = createMemoryRouter([{ element: <TestLayout withDashboardLink={withDashboardLink} />, children: [{ path: '/original-sets', element: <p>Original sets route</p> }, { path: '/original-sets/:originalSetId', element: <OriginalSetOnboarding /> }, { path: '/dashboard', element: <p>Dashboard route</p> }] }], { initialEntries: Array.isArray(entry) ? entry : [entry], initialIndex })
   return { ...render(<RouterProvider router={router} />), router }
 }
 
@@ -75,6 +75,20 @@ test('does not discard a dirty piece form when Back is declined', async () => {
   await user.click(screen.getByRole('button', { name: /^back$/i }))
   expect(confirm).toHaveBeenCalled()
   expect(screen.getByLabelText(/chest around/i)).toHaveValue('32')
+  vi.restoreAllMocks()
+})
+
+test('leaves dirty onboarding after one accepted Back confirmation', async () => {
+  server.use(http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json(detail)))
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const user = userEvent.setup()
+  const { router } = renderOnboarding()
+  await user.type(await screen.findByLabelText(/chest around/i), '32')
+  await user.click(screen.getByRole('button', { name: /^back$/i }))
+  expect(await screen.findByText('Original sets route')).toBeVisible()
+  expect(router.state.location.pathname).toBe('/original-sets')
+  expect(confirm).toHaveBeenCalledTimes(1)
+  vi.restoreAllMocks()
 })
 
 test('prevents browser unload while a piece draft is dirty', async () => {
