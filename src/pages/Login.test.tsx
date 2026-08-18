@@ -20,7 +20,7 @@ test('submits administrator credentials and redirects without persisting a JWT',
   const user = userEvent.setup()
   render(<App />)
 
-  expect(await screen.findByLabelText('SR Natiya Dance Shop')).toBeVisible()
+  expect(await screen.findByLabelText('Nritya Alankara Collections')).toBeVisible()
   await user.type(screen.getByLabelText(/username/i), admin.username)
   await user.type(screen.getByLabelText(/password/i), 'correct-password')
   await user.click(screen.getByRole('button', { name: /sign in/i }))

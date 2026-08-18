@@ -18,9 +18,9 @@ export default function AppShell() {
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
-        <a className="brand-lockup" href="/dashboard" aria-label="SR Natiya Dance Shop home">
-          <span>SR Natiya</span>
-          <small>Dance Shop</small>
+        <a className="brand-lockup" href="/dashboard" aria-label="Nritya Alankara Collections home">
+          <span>Nritya Alankara</span>
+          <small>Collections</small>
         </a>
         <div className="ornament" aria-hidden="true" />
         <nav className="sidebar-nav" aria-label="Primary navigation">
@@ -34,9 +34,9 @@ export default function AppShell() {
       </aside>
       <div className="app-content">
         <header className="mobile-brand">
-          <a className="brand-lockup" href="/dashboard" aria-label="SR Natiya Dance Shop home">
-            <span>SR Natiya</span>
-            <small>Dance Shop</small>
+          <a className="brand-lockup" href="/dashboard" aria-label="Nritya Alankara Collections home">
+            <span>Nritya Alankara</span>
+            <small>Collections</small>
           </a>
           <button type="button" className="mobile-menu" aria-label="Open navigation menu" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((open) => !open)}>☰</button>
         </header>

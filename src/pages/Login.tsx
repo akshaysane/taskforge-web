@@ -35,17 +35,17 @@ export default function Login() {
 
   return (
     <main className="login-page">
-      <section className="login-brand" aria-label="SR Natiya Dance Shop">
+      <section className="login-brand" aria-label="Nritya Alankara Collections">
         <div className="login-ornament" aria-hidden="true" />
         <div className="login-brand-copy">
-          <span>SR Natiya</span>
-          <small>Dance Shop</small>
+          <span>Nritya Alankara</span>
+          <small>Collections</small>
         </div>
       </section>
       <section className="login-form-panel" aria-labelledby="login-title">
         <div className="mobile-login-brand" aria-hidden="true">
-          <span>SR Natiya</span>
-          <small>Dance Shop</small>
+          <span>Nritya Alankara</span>
+          <small>Collections</small>
         </div>
         <h1 id="login-title">Welcome back</h1>
         <p>Sign in to manage costume inventory.</p>

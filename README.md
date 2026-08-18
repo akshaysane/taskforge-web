@@ -1,4 +1,4 @@
-# SR Natiya Dance Shop Web
+# Nritya Alankara Collections Web
 
 Mobile-first React application for administering Bharatanatyam costume inventory. The owner can onboard tailor sets, track individual labelled pieces and measurements, search inventory, upload photos, print or scan QR labels, change lifecycle status, and manage the two administrator accounts.
 
@@ -13,7 +13,7 @@ Mobile-first React application for administering Bharatanatyam costume inventory
 
 ## Local setup
 
-Requirements: Node.js 20+, pnpm 10+, and the SR Natiya API running at `http://localhost:3000`.
+Requirements: Node.js 20+, pnpm 10+, and the Nritya Alankara Collections API running at `http://localhost:3000`.
 
 ```bash
 pnpm install
