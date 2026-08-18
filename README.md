@@ -67,6 +67,8 @@ Camera scanning and physical printing still require a real phone/camera and prin
 - `/configuration`: piece types and measurement definitions
 - `/administrators`: owner accounts
 
-## Deployment gate
+## Production operations
 
-AWS deployment remains intentionally paused until local acceptance is complete and the owner explicitly approves deployment.
+The approved internal AWS release remains at `https://app.happyhabits.click` and calls `https://api.happyhabits.click`. Amplify builds fail unless `VITE_API_URL` equals that exact HTTPS API URL.
+
+Release, rollback, domain-migration, and secret-handling procedures are maintained in `docs/operations/aws-production-runbook.md` in the backend repository. Production data must never be seeded or reset.
