@@ -49,6 +49,7 @@ export default function PhotoUploader({ ownerType, ownerId, purpose, maxPhotos, 
       })
     } catch {
       updatePhoto(file, { state: 'failed' })
+      setError('Upload failed. Please retry.')
     }
   }
 

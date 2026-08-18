@@ -43,7 +43,7 @@ test('uploads with presigned headers, completes, attaches, previews, and retries
   render(<PhotoUploader ownerType="design" ownerId="design-1" purpose="REFERENCE" maxPhotos={3} onChange={() => undefined} />)
 
   await user.upload(screen.getByLabelText(/add photo/i), new File(['test'], 'photo.jpg', { type: 'image/jpeg' }))
-  expect(await screen.findByText(/upload failed/i)).toBeVisible()
+  expect(await screen.findByRole('alert')).toHaveTextContent(/upload failed/i)
   await user.click(screen.getByRole('button', { name: /retry photo.jpg/i }))
 
   await waitFor(() => expect(attached).toBe(true))
