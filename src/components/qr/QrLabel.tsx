@@ -8,9 +8,10 @@ interface QrLabelProps {
   designName?: string
   pieceName?: string
   baseUrl?: string
+  onReadinessChange?: (inventoryItemId: string, ready: boolean) => void
 }
 
-export default function QrLabel({ inventoryItemId, inventoryCode, designName, pieceName, baseUrl = window.location.origin }: QrLabelProps) {
+export default function QrLabel({ inventoryItemId, inventoryCode, designName, pieceName, baseUrl = window.location.origin, onReadinessChange }: QrLabelProps) {
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [qrError, setQrError] = useState('')
   const [printError, setPrintError] = useState('')
@@ -18,18 +19,19 @@ export default function QrLabel({ inventoryItemId, inventoryCode, designName, pi
 
   useEffect(() => {
     let active = true
+    onReadinessChange?.(inventoryItemId, false)
     void import('qrcode').then((QRCode) => QRCode.toDataURL(payload, {
       errorCorrectionLevel: 'H',
       margin: 1,
       width: 320,
       color: { dark: '#000000', light: '#FFFFFF' },
     })).then((dataUrl) => {
-      if (active) setQrDataUrl(dataUrl)
+      if (active) { setQrDataUrl(dataUrl); onReadinessChange?.(inventoryItemId, true) }
     }).catch(() => {
-      if (active) setQrError('Unable to generate this QR label.')
+      if (active) { setQrError('Unable to generate this QR label.'); onReadinessChange?.(inventoryItemId, false) }
     })
     return () => { active = false }
-  }, [payload])
+  }, [inventoryItemId, onReadinessChange, payload])
 
   async function printLabel() {
     setPrintError('')

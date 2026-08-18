@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { apiError } from '../api/designs'
 import { getInventoryItemByCode, recordLabelPrinted, updateInventoryItem, verifyInventoryLabel, type InventoryItem } from '../api/inventory'
@@ -25,6 +25,7 @@ function expectedItems(detail: OriginalSetDetail) {
   const expected = expectedIdentitySet(detail)
   return detail.inventoryItems.filter((item) => expected.has(expectedIdentity(item.pieceTypeId, item.pieceSequence)))
 }
+function activeItems(detail: OriginalSetDetail) { return detail.inventoryItems }
 function requiredDefinitions(detail: OriginalSetDetail, item: InventoryItem) {
   return detail.design.pieceRequirements.find((requirement) => requirement.pieceTypeId === item.pieceTypeId)?.pieceType.measurementDefinitions.filter((definition) => definition.requiredForItem) ?? []
 }
@@ -35,8 +36,9 @@ function deriveStage(detail: OriginalSetDetail): OnboardingStage {
   const referencePhoto = detail.media.some((photo) => photo.purpose === 'REFERENCE' && photo.mediaAsset.uploadStatus === 'READY')
   if (!referencePhoto) return 'PHOTO'
   const expected = expectedIdentitySet(detail)
-  const items = expectedItems(detail)
-  if (items.length !== expected.size) return 'PIECES'
+  const requiredItems = expectedItems(detail)
+  const items = activeItems(detail)
+  if (requiredItems.length !== expected.size) return 'PIECES'
   const measurementsComplete = items.every((item) => pieceComplete(detail, item))
   if (!measurementsComplete) return 'PIECES'
   if (!items.every((item) => item.labelVerified)) return 'LABELS'
@@ -44,7 +46,7 @@ function deriveStage(detail: OriginalSetDetail): OnboardingStage {
 }
 
 function completedPieceCount(detail: OriginalSetDetail) {
-  return expectedItems(detail).filter((item) => pieceComplete(detail, item)).length
+  return activeItems(detail).filter((item) => pieceComplete(detail, item)).length
 }
 
 export default function OriginalSetOnboarding() {
@@ -59,6 +61,7 @@ export default function OriginalSetOnboarding() {
   const [dirty, setDirty] = useState<Record<string, boolean>>({})
   const [scanMessage, setScanMessage] = useState('')
   const [printing, setPrinting] = useState(false)
+  const [readyLabelIds, setReadyLabelIds] = useState<Set<string>>(new Set())
   const [activePieceId, setActivePieceId] = useState('')
 
   const refresh = async () => { const next = await getOriginalSet(originalSetId); setDetail(next); setDrafts((current) => Object.fromEntries(next.inventoryItems.map((item) => [item.id, current[item.id] ?? draftFor(item)]))) }
@@ -68,8 +71,11 @@ export default function OriginalSetOnboarding() {
   const activeStage = requested && stages.includes(requested) && stages.indexOf(requested) <= stages.indexOf(serverStage) ? requested : serverStage
   const expectedCount = detail ? expectedIdentitySet(detail).size : 0
   const generatedExpectedItems = detail ? expectedItems(detail) : []
-  const editablePieceId = activePieceId || generatedExpectedItems.find((item) => !pieceComplete(detail!, item))?.id || generatedExpectedItems[0]?.id
+  const currentItems = detail ? activeItems(detail) : []
+  const editablePieceId = activePieceId || currentItems.find((item) => !pieceComplete(detail!, item))?.id || currentItems[0]?.id
   const photos = detail?.media.filter((photo) => photo.purpose === 'REFERENCE') ?? []
+  const setLabelReady = useCallback((inventoryItemId: string, ready: boolean) => setReadyLabelIds((current) => { const next = new Set(current); if (ready) next.add(inventoryItemId); else next.delete(inventoryItemId); return next }), [])
+  const labelsReady = currentItems.length > 0 && currentItems.every((item) => readyLabelIds.has(item.id))
 
   function showStage(stage: OnboardingStage) { if (stages.indexOf(stage) <= stages.indexOf(serverStage)) setQuery({ step: stage }) }
   function changeDraft(itemId: string, patch: Partial<Draft>) { setDrafts((current) => ({ ...current, [itemId]: { ...current[itemId], ...patch } })); setDirty((current) => ({ ...current, [itemId]: true })) }
@@ -99,7 +105,7 @@ export default function OriginalSetOnboarding() {
   async function printFullSheet() {
     setError(''); setPrinting(true)
     if (!detail) { setPrinting(false); return }
-    try { await Promise.all(expectedItems(detail).map((item) => recordLabelPrinted(item.id))); window.print() } catch (reason) { setError(`Unable to record label printing. ${apiError(reason).message}`) } finally { setPrinting(false) }
+    try { await Promise.all(activeItems(detail).map((item) => recordLabelPrinted(item.id))); window.print() } catch (reason) { setError(`Unable to record label printing. ${apiError(reason).message}`) } finally { setPrinting(false) }
   }
   async function verify() { setError(''); try { await verifyOriginalSet(originalSetId); await refresh() } catch (reason) { const parsed = apiError(reason); const source = reason as { response?: { data?: { blockers?: string[] } } }; const blockers = source.response?.data?.blockers; setError(blockers?.length ? `Incomplete: ${blockers.map((blocker) => blocker.replaceAll('_', ' ').toLowerCase()).join(', ')}` : parsed.message) } }
   const setPhotos = (next: MediaLink[]) => { if (detail) setDetail({ ...detail, media: [...detail.media.filter((photo) => photo.purpose !== 'REFERENCE'), ...next] }) }
@@ -113,9 +119,9 @@ export default function OriginalSetOnboarding() {
     {error ? <ErrorBanner message={error} /> : null}
     {activeStage === 'SET' ? <section className="onboarding-step"><h2>Set details</h2><dl><div><dt>Original set code</dt><dd>{detail.originalSetCode}</dd></div><div><dt>Design lineage</dt><dd>{detail.design.designCode} — {detail.design.name}</dd></div><div><dt>Notes</dt><dd>{detail.notes || 'No notes'}</dd></div></dl></section> : null}
     {activeStage === 'PHOTO' ? <section className="onboarding-step"><h2>Reference photo</h2><p>Add at least one READY reference photo for this original tailor set.</p>{!detail.verifiedAt ? <PhotoUploader ownerType="original-set" ownerId={detail.id} purpose="REFERENCE" maxPhotos={12} existingPhotos={photos} onChange={setPhotos} /> : null}<PhotoGallery photos={photos} ownerType="original-set" ownerId={detail.id} onChange={setPhotos} readOnly={Boolean(detail.verifiedAt)} /></section> : null}
-    {activeStage === 'PIECES' ? <section className="onboarding-step"><div className="step-title"><div><h2>Pieces</h2><p>{completedPieceCount(detail)} of {expectedCount} pieces complete</p></div>{generatedExpectedItems.length < expectedCount ? <button className="button" type="button" onClick={() => void generate()}>Generate expected pieces</button> : null}</div>{generatedExpectedItems.map((item) => { const requirement = detail.design.pieceRequirements.find((candidate) => candidate.pieceTypeId === item.pieceTypeId); const definitions = requirement?.pieceType.measurementDefinitions ?? []; const draft = drafts[item.id] ?? draftFor(item); const editing = editablePieceId === item.id; return <article className="piece-entry" key={item.id}><h3>{requirement?.pieceType.name ?? item.inventoryCode}</h3><p>{item.inventoryCode} · {pieceComplete(detail, item) ? 'Complete' : 'Not started'}</p><button className="button button-secondary" type="button" aria-expanded={editing} onClick={() => setActivePieceId(item.id)}>Edit {requirement?.pieceType.name ?? 'piece'}</button>{editing ? <><div className="piece-fields">{definitions.map((definition) => <label key={definition.id}>{definition.label} ({definition.unit.toLowerCase()}){definition.requiredForItem ? <strong> Required</strong> : null}<input aria-label={definition.label} inputMode="decimal" value={draft.measurements[definition.id] ?? ''} onChange={(event) => changeDraft(item.id, { measurements: { ...draft.measurements, [definition.id]: event.target.value } })} /></label>)}<label>Custom size<input value={draft.customSize} onChange={(event) => changeDraft(item.id, { customSize: event.target.value })} /></label><label>Storage location<input value={draft.storageLocation} onChange={(event) => changeDraft(item.id, { storageLocation: event.target.value })} /></label></div><button className="button" type="button" disabled={saving[item.id]} onClick={() => void savePiece(item)}>{saving[item.id] ? 'Saving…' : `Save ${requirement?.pieceType.name ?? 'piece'}`}</button></> : null}</article> })}</section> : null}
-    {activeStage === 'LABELS' ? <section className="onboarding-step"><h2>Labels</h2><p>Print each label, then verify it by scanning or entering its code.</p><button type="button" className="button button-secondary" disabled={printing} onClick={() => void printFullSheet()}>{printing ? 'Recording labels…' : 'Print full sheet'}</button><div className="onboarding-labels print-sheet">{generatedExpectedItems.map((item) => { const piece = detail.design.pieceRequirements.find((requirement) => requirement.pieceTypeId === item.pieceTypeId)?.pieceType; return <article key={item.id}><QrLabel inventoryItemId={item.id} inventoryCode={item.inventoryCode} designName={detail.design.name} pieceName={piece?.name} /><p className={item.labelVerified ? 'verified-badge' : 'incomplete-badge'}>{item.labelVerified ? 'Label verified' : 'Awaiting scan'}</p></article> })}</div><QrScanner onScan={scan} manualLabel="Manual code" submitLabel="Verify label" />{scanMessage ? <p role="status">{scanMessage}</p> : null}</section> : null}
-    {activeStage === 'VERIFY' ? <section className="onboarding-step"><h2>Verify original set</h2><ul className="verification-list"><li>{generatedExpectedItems.length === expectedCount ? 'Expected items complete' : 'Expected items missing'}</li><li>{photos.length ? 'Reference photo attached' : 'Reference photo missing'}</li><li>{completedPieceCount(detail) === expectedCount ? 'Required measurements complete' : 'Required measurements missing'}</li><li>{generatedExpectedItems.length === expectedCount && generatedExpectedItems.every((item) => item.labelVerified) ? 'All labels scanned' : 'Label scans remaining'}</li></ul>{detail.verifiedAt ? <p role="status">Original set verified</p> : <button type="button" className="button" onClick={() => void verify()}>Verify original set</button>}</section> : null}
+    {activeStage === 'PIECES' ? <section className="onboarding-step"><div className="step-title"><div><h2>Pieces</h2><p>{completedPieceCount(detail)} of {currentItems.length} active pieces complete</p></div>{generatedExpectedItems.length < expectedCount ? <button className="button" type="button" onClick={() => void generate()}>Generate expected pieces</button> : null}</div>{currentItems.map((item) => { const requirement = detail.design.pieceRequirements.find((candidate) => candidate.pieceTypeId === item.pieceTypeId); const definitions = requirement?.pieceType.measurementDefinitions ?? []; const draft = drafts[item.id] ?? draftFor(item); const editing = editablePieceId === item.id; const unexpected = !expectedIdentitySet(detail).has(expectedIdentity(item.pieceTypeId, item.pieceSequence)); return <article className="piece-entry" key={item.id}><h3>{requirement?.pieceType.name ?? item.inventoryCode}</h3><p>{item.inventoryCode} · {unexpected ? 'Added item · ' : ''}{pieceComplete(detail, item) ? 'Complete' : item.measurements.length ? 'In progress' : 'Not started'}</p><button className="button button-secondary" type="button" aria-expanded={editing} onClick={() => setActivePieceId(item.id)}>Edit {requirement?.pieceType.name ?? 'piece'}</button>{editing ? <><div className="piece-fields">{definitions.map((definition) => <label key={definition.id}>{definition.label} ({definition.unit.toLowerCase()}){definition.requiredForItem ? <strong> Required</strong> : null}<input aria-label={definition.label} inputMode="decimal" value={draft.measurements[definition.id] ?? ''} onChange={(event) => changeDraft(item.id, { measurements: { ...draft.measurements, [definition.id]: event.target.value } })} /></label>)}<label>Custom size<input value={draft.customSize} onChange={(event) => changeDraft(item.id, { customSize: event.target.value })} /></label><label>Storage location<input value={draft.storageLocation} onChange={(event) => changeDraft(item.id, { storageLocation: event.target.value })} /></label></div><button className="button" type="button" disabled={saving[item.id]} onClick={() => void savePiece(item)}>{saving[item.id] ? 'Saving…' : `Save ${requirement?.pieceType.name ?? 'piece'}`}</button></> : null}</article> })}</section> : null}
+    {activeStage === 'LABELS' ? <section className="onboarding-step"><h2>Labels</h2><p>Print each label, then verify it by scanning or entering its code.</p><button type="button" className="button button-secondary" disabled={printing || !labelsReady} onClick={() => void printFullSheet()}>{printing ? 'Recording labels…' : labelsReady ? 'Print full sheet' : 'Preparing labels…'}</button><div className="onboarding-labels print-sheet">{currentItems.map((item) => { const piece = detail.design.pieceRequirements.find((requirement) => requirement.pieceTypeId === item.pieceTypeId)?.pieceType; return <article key={item.id}><QrLabel inventoryItemId={item.id} inventoryCode={item.inventoryCode} designName={detail.design.name} pieceName={piece?.name} onReadinessChange={setLabelReady} /><p className={item.labelVerified ? 'verified-badge' : 'incomplete-badge'}>{item.labelVerified ? 'Label verified' : 'Awaiting scan'}</p></article> })}</div><QrScanner onScan={scan} manualLabel="Manual code" submitLabel="Verify label" />{scanMessage ? <p role="status">{scanMessage}</p> : null}</section> : null}
+    {activeStage === 'VERIFY' ? <section className="onboarding-step"><h2>Verify original set</h2><ul className="verification-list"><li>{generatedExpectedItems.length === expectedCount ? 'Expected items complete' : 'Expected items missing'}</li><li>{photos.length ? 'Reference photo attached' : 'Reference photo missing'}</li><li>{completedPieceCount(detail) === currentItems.length ? 'Required measurements complete' : 'Required measurements missing'}</li><li>{currentItems.every((item) => item.labelVerified) ? 'All labels scanned' : 'Label scans remaining'}</li></ul>{detail.verifiedAt ? <p role="status">Original set verified</p> : <button type="button" className="button" onClick={() => void verify()}>Verify original set</button>}</section> : null}
     <footer className="onboarding-actions"><button className="button button-secondary" type="button" onClick={backToList}>Back</button>{activeStage !== 'VERIFY' ? <button className="button" type="button" onClick={() => showStage(stages[Math.min(stages.indexOf(activeStage) + 1, stages.length - 1)])}>Save and continue</button> : null}</footer>
   </main>
 }

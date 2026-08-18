@@ -98,8 +98,8 @@ test('keeps an identity-mismatched set at Pieces and regenerates the missing exp
   )
   const user = userEvent.setup()
   renderOnboarding()
-  expect(await screen.findByText('0 of 1 pieces complete')).toBeVisible()
-  expect(screen.queryByText('YP-S04-BL-02')).not.toBeInTheDocument()
+  expect(await screen.findByText('0 of 1 active pieces complete')).toBeVisible()
+  expect(screen.getByText(/YP-S04-BL-02.*Added item/i)).toBeVisible()
   await user.click(screen.getByRole('button', { name: /generate expected pieces/i }))
   expect(await screen.findByRole('button', { name: /generate expected pieces/i })).toBeVisible()
 })
@@ -140,7 +140,8 @@ test('rejects a scanned label that belongs to a different original set before ve
 })
 
 test('records every label before printing a full sheet', async () => {
-  const ready = { ...detail, inventoryItems: [{ ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] }] }
+  const measured = { ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] }
+  const ready = { ...detail, inventoryItems: [measured, { ...measured, id: '1e48d7f1-fdef-4b21-a2bb-9df4c7492db5', pieceSequence: 2, inventoryCode: 'YP-S04-BL-02' }] }
   let audited = 0
   const print = vi.spyOn(window, 'print').mockImplementation(() => undefined)
   server.use(
@@ -150,7 +151,7 @@ test('records every label before printing a full sheet', async () => {
   const user = userEvent.setup()
   renderOnboarding()
   await user.click(await screen.findByRole('button', { name: /print full sheet/i }))
-  expect(audited).toBe(1)
+  expect(audited).toBe(2)
   expect(print).toHaveBeenCalled()
 })
 
