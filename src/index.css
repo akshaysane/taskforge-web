@@ -57,6 +57,32 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .search-field input { width: 100%; min-height: 54px; padding: 0 16px 0 44px; border: 1px solid #ded8d4; border-radius: 8px; background: #fff; }
 .dashboard-overview, .route-placeholder { padding: 44px 38px; }
 .dashboard-overview h2 { margin-bottom: 24px; font-size: 1.6rem; color: #292527; }
+.scan-page { width: min(100%, 680px); padding: 44px 38px 72px; }
+.scan-page-header { margin: 0 0 26px; text-align: center; }
+.scan-page-header h1 { margin: 0; color: #4b163c; font-family: Georgia, 'Iowan Old Style', serif; font-size: 2.25rem; font-weight: 500; }
+.scan-page-header p { margin: 9px 0 0; color: #6d676a; }
+.qr-scanner { display: grid; gap: 20px; }
+.qr-camera-panel { position: relative; min-height: 260px; display: grid; place-content: center; gap: 16px; padding: 28px; overflow: hidden; border: 1px solid #ded8d4; border-radius: 12px; background: #fff; text-align: center; }
+.qr-camera-panel > * { position: relative; z-index: 1; }
+.qr-camera-panel p { max-width: 320px; margin: 0; }
+.qr-camera-panel .button { width: min(100%, 320px); }
+.qr-camera-preview { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #e9e4df; }
+.qr-camera-preview:not(.active) { display: none; }
+.qr-scan-mark { width: 96px; height: 96px; display: grid; place-content: center; margin: auto; border: 1px solid #d28a16; border-radius: 24px; color: #4b163c; font-size: 4rem; line-height: 1; }
+.qr-manual-divider { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; color: #6d676a; font-size: .85rem; text-transform: uppercase; }
+.qr-manual-divider::before, .qr-manual-divider::after { content: ''; border-top: 1px solid #ded8d4; }
+.qr-manual-form { display: grid; gap: 9px; }
+.qr-manual-form label { font-weight: 600; }
+.qr-manual-form input { min-height: 52px; padding: 0 14px; border: 1px solid #bfb7b2; border-radius: 8px; background: #fff; text-transform: uppercase; }
+.qr-manual-form .button { width: 100%; }
+.qr-label-section { display: grid; justify-items: start; gap: 14px; }
+.qr-label { width: 2.25in; height: 1.25in; display: grid; grid-template-columns: .95in minmax(0, 1fr); align-items: center; gap: .11in; padding: .1in; border: 2px solid #000; border-radius: .08in; background: #fff; color: #000; }
+.qr-label img { width: .9in; height: .9in; display: block; image-rendering: pixelated; }
+.qr-label-loading { width: .9in; height: .9in; display: grid; place-content: center; border: 1px dashed #000; font-size: .1in; text-align: center; }
+.qr-label-copy { min-width: 0; display: grid; gap: .06in; }
+.qr-label-copy strong { overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .23in; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.qr-label-copy span { font-size: .14in; line-height: 1.15; }
+.qr-print-button { min-width: 180px; }
 .empty-state { display: grid; min-height: 240px; place-content: center; border: 1px dashed #cfc8c2; color: #6d676a; text-align: center; }
 .empty-state-mark { color: #4b163c; font-size: 2rem; }
 .empty-state h2 { margin: 12px 0 0; color: #292527; font-family: inherit; font-size: 1.1rem; }
@@ -141,6 +167,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .search-field { flex: 1 0 100%; width: 100%; }
   .page-header-actions .button { flex: 1 1 180px; }
   .dashboard-overview, .route-placeholder { padding: 38px 42px; }
+  .scan-page { margin: auto; padding: 38px 42px 44px; }
   .config-page { padding: 34px 42px 44px; }
   .configuration-layout { grid-template-columns: 1fr; }
 }
@@ -159,6 +186,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .page-header { padding: 34px 24px; }
   .page-header h1 { font-size: 2.45rem; }
   .dashboard-overview, .route-placeholder { padding: 32px 24px; }
+  .scan-page { padding: 32px 24px 40px; }
+  .scan-page-header { text-align: left; }
+  .qr-camera-panel { min-height: 226px; }
   .config-page { padding: 30px 24px 36px; }
   .page-intro { align-items: flex-start; flex-direction: column; }
   .data-table { overflow: visible; border: 0; border-radius: 0; background: transparent; }
@@ -185,3 +215,12 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+@media print {
+  @page { size: letter; margin: .35in; }
+  body { background: #fff; }
+  .app-sidebar, .mobile-brand, .mobile-nav, .page-header, .qr-print-button, .qr-label-section > .field-error { display: none !important; }
+  .app-shell, .app-content, main { display: block; min-height: 0; padding: 0; }
+  .qr-label-section { display: block; }
+  .qr-label { break-inside: avoid; page-break-inside: avoid; }
+}

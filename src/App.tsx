@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import AppShell from './components/app/AppShell'
 import LoadingState from './components/feedback/LoadingState'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -10,6 +10,8 @@ import InventorySettings from './pages/InventorySettings'
 import Login from './pages/Login'
 import { useAuthStore } from './store/auth'
 
+const Scan = lazy(() => import('./pages/Scan'))
+
 function PublicOnlyRoute() {
   const status = useAuthStore((state) => state.status)
   if (status === 'loading') return <LoadingState label="Loading inventory" />
@@ -19,6 +21,12 @@ function PublicOnlyRoute() {
 
 function RoutePlaceholder({ title }: { title: string }) {
   return <div className="route-placeholder"><h1>{title}</h1></div>
+}
+
+function InventoryItemPlaceholder() {
+  const location = useLocation()
+  const verification = (location.state as { labelVerification?: string } | null)?.labelVerification
+  return <div className="route-placeholder"><h1>Inventory item</h1>{verification ? <p role="status">{verification}</p> : null}</div>
 }
 
 export default function App() {
@@ -38,7 +46,8 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/inventory" element={<RoutePlaceholder title="Inventory" />} />
-            <Route path="/scan" element={<RoutePlaceholder title="Scan" />} />
+            <Route path="/scan" element={<Suspense fallback={<LoadingState label="Loading scanner" />}><Scan /></Suspense>} />
+            <Route path="/inventory/:inventoryCode" element={<InventoryItemPlaceholder />} />
             <Route path="/onboarding" element={<RoutePlaceholder title="Onboarding" />} />
             <Route path="/designs" element={<Designs />} />
             <Route path="/designs/:designId" element={<DesignDetail />} />
