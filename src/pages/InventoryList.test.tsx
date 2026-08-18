@@ -57,6 +57,8 @@ test('discards a delayed cursor page after the serialized search changes', async
   const requests: URL[] = []
   let resolveOldPage!: () => void
   const oldPageGate = new Promise<void>((resolve) => { resolveOldPage = resolve })
+  let resolveNewBase!: () => void
+  const newBaseGate = new Promise<void>((resolve) => { resolveNewBase = resolve })
   server.use(http.get('*/api/designs', () => HttpResponse.json([])), http.get('*/api/piece-types', () => HttpResponse.json([])), http.get('*/api/inventory-items', async ({ request }) => {
     const url = new URL(request.url)
     requests.push(url)
@@ -67,7 +69,7 @@ test('discards a delayed cursor page after the serialized search changes', async
       await oldPageGate
       return HttpResponse.json({ items: [{ ...item, id: 'old-page', inventoryCode: 'QUERY-A-OLD-PAGE' }], nextCursor: 'stale-cursor' })
     }
-    if (query === 'query-b' && !cursor) return HttpResponse.json({ items: [{ ...item, id: 'query-b', inventoryCode: 'QUERY-B-BASE' }], nextCursor: 'cursor-b' })
+    if (query === 'query-b' && !cursor) { await newBaseGate; return HttpResponse.json({ items: [{ ...item, id: 'query-b', inventoryCode: 'QUERY-B-BASE' }], nextCursor: 'cursor-b' }) }
     if (query === 'query-b' && cursor === 'cursor-b') return HttpResponse.json({ items: [{ ...item, id: 'query-b-page', inventoryCode: 'QUERY-B-PAGE' }], nextCursor: null })
     return HttpResponse.json({ message: `Unexpected search request: ${url.search}` }, { status: 500 })
   }))
@@ -79,6 +81,9 @@ test('discards a delayed cursor page after the serialized search changes', async
   const search = screen.getByRole('searchbox', { name: /search inventory/i })
   await user.clear(search)
   await user.type(search, 'query-b')
+  await waitFor(() => expect(requests.some((request) => request.searchParams.get('query') === 'query-b' && !request.searchParams.get('cursor'))).toBe(true))
+  expect(screen.queryByRole('button', { name: /load more/i })).not.toBeInTheDocument()
+  await act(async () => { resolveNewBase(); await newBaseGate })
   expect(await screen.findByText('QUERY-B-BASE')).toBeVisible()
   await act(async () => { resolveOldPage(); await oldPageGate })
   await waitFor(() => expect(screen.getByRole('button', { name: /load more/i })).toBeEnabled())

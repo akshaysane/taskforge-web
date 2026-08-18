@@ -95,7 +95,7 @@ export default function InventoryList() {
   useEffect(() => {
     let active = true
     const requestSequence = ++baseRequestSequence.current
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setNextCursor(null)
     const query = inventorySearchFrom(new URLSearchParams(serialized))
     void listInventoryItems({ ...query, limit: 25 }).then((result) => {
       if (active && baseRequestSequence.current === requestSequence) { setItems(result.items); setNextCursor(result.nextCursor) }
@@ -114,7 +114,7 @@ export default function InventoryList() {
   }
   function clearFilters() { setDraftQuery(''); setParams(new URLSearchParams()) }
   async function loadMore() {
-    if (!nextCursor) return
+    if (!nextCursor || loading) return
     const requestSearch = serialized
     const requestSequence = baseRequestSequence.current
     const requestId = ++loadMoreSequence.current
@@ -137,7 +137,7 @@ export default function InventoryList() {
       <InventoryFilters value={filters} designs={designs} pieceTypes={pieceTypes} onChange={updateFilters} onReset={clearFilters} />
       {catalogError ? <div className="catalog-error"><ErrorBanner message={catalogError} /><button type="button" className="button button-secondary" onClick={() => setCatalogRetry((attempt) => attempt + 1)}>Retry filter options</button></div> : null}
       {error ? <ErrorBanner message={error} /> : loading ? <LoadingState label="Loading inventory" /> : items.length === 0 ? <EmptyState title="No inventory items" description="Try clearing filters or add an item to an original set." /> : <div className="inventory-list">{items.map((item) => <InventoryCard key={item.id} item={item} />)}</div>}
-      {!error && nextCursor ? <button className="button button-secondary" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? 'Loading…' : 'Load more'}</button> : null}
+      {!error && !loading && nextCursor ? <button className="button button-secondary" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? 'Loading…' : 'Load more'}</button> : null}
     </section>
   </>
 }
