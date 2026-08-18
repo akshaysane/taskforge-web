@@ -5,6 +5,9 @@ import { listPieceTypes, type PieceType } from '../api/piece-types'
 import ErrorBanner from '../components/feedback/ErrorBanner'
 import LoadingState from '../components/feedback/LoadingState'
 import AccessibleSheet from '../components/overlay/AccessibleSheet'
+import PhotoGallery from '../components/media/PhotoGallery'
+import PhotoUploader from '../components/media/PhotoUploader'
+import type { MediaLink } from '../api/media'
 
 const blankDesign: DesignInput = { designCode: '', name: '', costumeType: '', primaryColor: '', secondaryColor: '', description: '' }
 
@@ -30,6 +33,7 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [photos, setPhotos] = useState<MediaLink[]>([])
 
   useEffect(() => {
     let active = true
@@ -41,6 +45,7 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
         setDesign(loaded)
         setInput(inputFromDesign(loaded))
         setRequirements(loaded.pieceRequirements)
+        setPhotos(loaded.media ?? [])
       }
     }).catch((requestError: unknown) => {
       if (active) setError(apiError(requestError).message)
@@ -67,7 +72,7 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
         ? await updateDesign(design.id, { name: input.name, costumeType: input.costumeType, primaryColor: input.primaryColor, secondaryColor: input.secondaryColor, description: input.description })
         : await createDesign(input)
       const savedRequirements = await replaceDesignRequirements(saved.id, requirements)
-      const complete = { ...saved, pieceRequirements: savedRequirements }
+      const complete = { ...saved, pieceRequirements: savedRequirements, media: photos }
       setDesign(complete)
       setInput(inputFromDesign(complete))
       setRequirements(savedRequirements)
@@ -109,6 +114,9 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
           <button type="button" className="icon-button" aria-label={`Remove piece ${index + 1}`} onClick={() => setRequirements((current) => current.filter((_, requirementIndex) => requirementIndex !== index))}>×</button>
         </div>)}
         <button type="button" className="button button-secondary" onClick={() => { const available = pieceTypes.find((piece) => !requirements.some((requirement) => requirement.pieceTypeId === piece.id)); if (available) setRequirements((current) => [...current, rowFromPiece(available, current.length)]) }}>Add piece</button>
+      </fieldset>
+      <fieldset className="requirements"><legend>Reference photos</legend><p>Keep visual references with this design.</p>
+        {design ? <><PhotoUploader ownerType="design" ownerId={design.id} purpose="REFERENCE" maxPhotos={12} existingPhotos={photos} onChange={setPhotos} /><PhotoGallery photos={photos} /></> : <p>Save the design before adding reference photos.</p>}
       </fieldset>
       <div className="editor-actions"><button className="button button-secondary" type="button" onClick={close}>Cancel</button><button className="button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save design'}</button></div>
     </form>

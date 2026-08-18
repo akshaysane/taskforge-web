@@ -1,5 +1,6 @@
 import axios from 'axios'
 import apiClient from './client'
+import type { MediaLink } from './media'
 
 export interface DesignPieceRequirement {
   id?: string
@@ -24,6 +25,7 @@ export interface Design {
   updatedAt: string
   originalSetCount: number
   pieceRequirements: DesignPieceRequirement[]
+  media: MediaLink[]
 }
 
 export interface DesignInput {

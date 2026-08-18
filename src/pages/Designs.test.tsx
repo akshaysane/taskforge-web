@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router-dom'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import Designs from './Designs'
 import DesignDetail from './DesignDetail'
 import { server } from '../test/server'
@@ -120,6 +120,27 @@ test('sends null to clear optional design fields', async () => {
   await user.click(screen.getByRole('button', { name: /save design/i }))
 
   expect(patchBody).toMatchObject({ primaryColor: null, secondaryColor: null, description: null })
+})
+
+test('attaches and displays a READY reference photo for an existing design', async () => {
+  let attached = false
+  const asset = { id: '7de0f4e2-37be-49b9-a311-a5f707a3e2a4', objectKey: 'inventory-media/reference.jpg', mimeType: 'image/jpeg', byteSize: 4, checksum: null, uploadStatus: 'READY', uploadedById: createdDesign.id, createdAt: createdDesign.createdAt, updatedAt: createdDesign.updatedAt }
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json({ ...createdDesign, media: [] })),
+    http.post('*/api/media/uploads', () => HttpResponse.json({ mediaAsset: { ...asset, uploadStatus: 'PENDING' }, upload: { url: 'https://uploads.example/reference', method: 'PUT', headers: { 'content-type': 'image/jpeg' }, expiresAt: createdDesign.updatedAt } }, { status: 201 })),
+    http.put('https://uploads.example/reference', () => new HttpResponse(null, { status: 200 })),
+    http.post('*/api/media/:mediaAssetId/complete', () => HttpResponse.json(asset)),
+    http.post('*/api/designs/:designId/media/:mediaAssetId', () => { attached = true; return HttpResponse.json({ id: 'media-link', mediaAssetId: asset.id, purpose: 'REFERENCE', caption: null, sortOrder: 0, mediaAsset: asset }, { status: 201 }) }),
+  )
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:reference')
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  await user.upload(await screen.findByLabelText(/add photo/i), new File(['test'], 'reference.jpg', { type: 'image/jpeg' }))
+
+  await screen.findByRole('img', { name: 'reference.jpg' })
+  expect(attached).toBe(true)
 })
 
 test('opens an accessible design sheet and restores focus after Escape', async () => {
