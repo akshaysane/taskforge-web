@@ -178,11 +178,11 @@ test('editing a Design Code restores exact current display codes while preservin
     await expectNoFrameworkOverlay(page)
     await capture(page, testInfo, 'editable-code-uuid-route')
 
-    const worstCaseInventoryCode = 'ABCDEFGHIJKLMNOPQRST-S99-ABCDEFGHIJ-99'
+    const maximumGeneratedInventoryCode = 'ABCDEFGHIJKLMNOPQRST-S2147483647-ABCDEFGHIJ-32767'
     const currentCode = currentQrLabel.locator('.qr-label-copy strong')
-    await currentCode.evaluate((element, code) => { element.textContent = code }, worstCaseInventoryCode)
-    await expectQrCodeReadable(currentQrLabel, worstCaseInventoryCode)
-    await capture(page, testInfo, 'editable-code-worst-case-qr')
+    await currentCode.evaluate((element, code) => { element.textContent = code }, maximumGeneratedInventoryCode)
+    await expectQrCodeReadable(currentQrLabel, maximumGeneratedInventoryCode)
+    await capture(page, testInfo, 'editable-code-maximum-generated-qr')
     await currentCode.evaluate((element) => { element.textContent = 'RG_E2E-S01-BL' })
 
     const legacyResponsePromise = page.waitForResponse((response) => response.request().method() === 'GET'
