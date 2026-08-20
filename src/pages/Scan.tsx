@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { getInventoryItemByCode, verifyInventoryLabel } from '../api/inventory'
+import { getInventoryItem, getInventoryItemByCode, verifyInventoryLabelById } from '../api/inventory'
 import QrScanner from '../components/qr/QrScanner'
 import { parseInventoryQrPayload } from '../lib/qr'
 
@@ -23,13 +23,15 @@ export default function Scan() {
     setStatus('')
     setLookingUp(true)
     try {
-      const item = await getInventoryItemByCode(parsed.inventoryCode)
+      const item = 'inventoryItemId' in parsed
+        ? await getInventoryItem(parsed.inventoryItemId)
+        : await getInventoryItemByCode(parsed.inventoryCode)
       if (onboarding) {
-        const verification = await verifyInventoryLabel(item.inventoryCode)
+        const verification = await verifyInventoryLabelById(item.id)
         setStatus(verification.alreadyVerified ? 'Already verified' : 'Label verified')
-        navigate(`/inventory/${item.inventoryCode}`, { state: { labelVerification: verification.alreadyVerified ? 'Already verified' : 'Label verified' } })
+        navigate(`/inventory/items/${item.id}`, { state: { labelVerification: verification.alreadyVerified ? 'Already verified' : 'Label verified' } })
       } else {
-        navigate(`/inventory/${item.inventoryCode}`)
+        navigate(`/inventory/items/${item.id}`)
       }
       return true
     } catch (requestError) {

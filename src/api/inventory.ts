@@ -65,6 +65,10 @@ export async function verifyInventoryLabel(inventoryCode: string): Promise<{ alr
   return (await apiClient.post<{ alreadyVerified: boolean }>(`/api/inventory-items/by-code/${encodeURIComponent(inventoryCode)}/verify-label`)).data
 }
 
+export async function verifyInventoryLabelById(inventoryItemId: string): Promise<{ alreadyVerified: boolean }> {
+  return (await apiClient.post<{ alreadyVerified: boolean }>(`/api/inventory-items/${inventoryItemId}/verify-label`)).data
+}
+
 export interface InventoryItemUpdate {
   version: number
   customSize?: string | null

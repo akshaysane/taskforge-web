@@ -157,6 +157,31 @@ test('shows label feedback for first and repeated scans and refreshes its server
   expect(await screen.findByText('Already verified')).toBeVisible()
 })
 
+test('verifies a generated UUID label through the immutable item endpoint', async () => {
+  let directReads = 0
+  let idVerifications = 0
+  server.use(
+    http.get('*/api/original-sets/:originalSetId', () => HttpResponse.json({ ...detail, inventoryItems: [{ ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] }] })),
+    http.get(`*/api/inventory-items/${ids.item}`, () => {
+      directReads += 1
+      return HttpResponse.json({ ...item, measurements: [{ measurementDefinitionId: ids.definition, code: 'CHEST', label: 'Chest around', value: '32' }] })
+    }),
+    http.post(`*/api/inventory-items/${ids.item}/verify-label`, () => {
+      idVerifications += 1
+      return HttpResponse.json({ alreadyVerified: false })
+    }),
+  )
+  const user = userEvent.setup()
+  renderOnboarding()
+  await user.click(await screen.findByRole('button', { name: /labels/i }))
+  await user.type(screen.getByLabelText(/manual code/i), `${window.location.origin}/inventory/items/${ids.item}`)
+  await user.click(screen.getByRole('button', { name: /verify label/i }))
+
+  expect(await screen.findByText('Label verified')).toBeVisible()
+  expect(directReads).toBe(1)
+  expect(idVerifications).toBe(1)
+})
+
 test('keeps an identity-mismatched set at Pieces and regenerates the missing expected item', async () => {
   const wrongItem = { ...item, pieceSequence: 2, inventoryCode: 'YP-S04-BL-02' }
   server.use(

@@ -8,9 +8,56 @@ import { server } from '../test/server'
 
 const item = { id: '11111111-1111-4111-8111-111111111111', originalSetId: '22222222-2222-4222-8222-222222222222', pieceTypeId: '33333333-3333-4333-8333-333333333333', pieceSequence: 1, inventoryCode: 'YP-S04-BL-01', lifecycleStatus: 'ACTIVE', condition: 'EXCELLENT', customSize: 'M', storageLocation: 'Rack A', alterationAllowance: null, notes: null, purchaseCost: null, stitchingCost: null, archivedAt: null, version: 2, createdAt: '2026-08-17T00:00:00.000Z', updatedAt: '2026-08-17T00:00:00.000Z', measurements: [{ measurementDefinitionId: '44444444-4444-4444-8444-444444444444', code: 'BUST', label: 'Bust', value: '34' }] }
 
-function renderDetail() { return render(<MemoryRouter initialEntries={['/inventory/YP-S04-BL-01']}><Routes><Route path="/inventory/:inventoryCode" element={<InventoryDetail />} /></Routes></MemoryRouter>) }
+function InventoryDetailRoutes() { return <Routes><Route path="/inventory/items/:inventoryItemId" element={<InventoryDetail />} /><Route path="/inventory/:inventoryCode" element={<InventoryDetail />} /></Routes> }
+function renderDetail() { return render(<MemoryRouter initialEntries={['/inventory/YP-S04-BL-01']}><InventoryDetailRoutes /></MemoryRouter>) }
+function renderUuidDetail() { return render(<MemoryRouter initialEntries={[`/inventory/items/${item.id}`]}><InventoryDetailRoutes /></MemoryRouter>) }
 function DetailRoutes() { return <><Link to="/inventory/YP-S04-BL-02">Second item</Link><Routes><Route path="/inventory/:inventoryCode" element={<InventoryDetail />} /></Routes></> }
 function RaceDetailRoutes() { return <><Link to="/inventory/YP-S04-BL-01">First item</Link><Link to="/inventory/YP-S04-BL-02">Second item</Link><Routes><Route path="/inventory/:inventoryCode" element={<InventoryDetail />} /></Routes></> }
+function UuidRaceDetailRoutes({ firstId, secondId }: { firstId: string; secondId: string }) { return <><Link to={`/inventory/items/${firstId}`}>First UUID item</Link><Link to={`/inventory/items/${secondId}`}>Second UUID item</Link><InventoryDetailRoutes /></> }
+
+test('loads a UUID route directly without making a by-code request', async () => {
+  let directReads = 0
+  let byCodeReads = 0
+  server.use(
+    http.get('*/api/inventory-items/by-code/:code', () => {
+      byCodeReads += 1
+      return HttpResponse.json(item)
+    }),
+    http.get(`*/api/inventory-items/${item.id}`, () => {
+      directReads += 1
+      return HttpResponse.json(item)
+    }),
+    http.get(`*/api/inventory-items/${item.id}/events`, () => HttpResponse.json([])),
+  )
+
+  renderUuidDetail()
+
+  expect(await screen.findByRole('heading', { name: item.inventoryCode })).toBeVisible()
+  expect(directReads).toBe(1)
+  expect(byCodeReads).toBe(0)
+})
+
+test('resolves a legacy alias route before loading the current rich item by UUID', async () => {
+  let resolvedCode = ''
+  let directReads = 0
+  server.use(
+    http.get('*/api/inventory-items/by-code/:code', ({ params }) => {
+      resolvedCode = String(params.code)
+      return HttpResponse.json({ ...item, inventoryCode: 'DH-AD02-S01-BL' })
+    }),
+    http.get(`*/api/inventory-items/${item.id}`, () => {
+      directReads += 1
+      return HttpResponse.json({ ...item, inventoryCode: 'DH-AD02-S01-BL' })
+    }),
+    http.get(`*/api/inventory-items/${item.id}/events`, () => HttpResponse.json([])),
+  )
+
+  render(<MemoryRouter initialEntries={['/inventory/DH-AD01-S01-BL']}><InventoryDetailRoutes /></MemoryRouter>)
+
+  expect(await screen.findByRole('heading', { name: 'DH-AD02-S01-BL' })).toBeVisible()
+  expect(resolvedCode).toBe('DH-AD01-S01-BL')
+  expect(directReads).toBe(1)
+})
 
 test('shows immutable identity, measurements, history, QR label and saves a mutable update', async () => {
   let updateBody: Record<string, unknown> | undefined
@@ -25,7 +72,8 @@ test('shows immutable identity, measurements, history, QR label and saves a muta
   expect(await screen.findByRole('heading', { name: 'YP-S04-BL-01' })).toBeVisible()
   expect(screen.getByText(/bust/i)).toBeVisible()
   expect(screen.getByText(/created/i)).toBeVisible()
-  expect(screen.getByText(/identity is permanent/i)).toBeVisible()
+  expect(screen.getByText('Internal item identity and lineage remain permanent.')).toBeVisible()
+  expect(screen.getByText('The generated display code changes only through its parent Design workflow.')).toBeVisible()
   await user.type(screen.getByLabelText(/notes/i), 'Hem checked')
   await user.click(screen.getByRole('button', { name: /save overview/i }))
   expect(updateBody).toMatchObject({ version: 2, notes: 'Hem checked' })
@@ -177,6 +225,38 @@ test('does not let a slow prior inventory-code load overwrite the current route 
   await act(async () => { resolveFirstIdentity?.(HttpResponse.json(item)); await Promise.resolve() })
   await waitFor(() => expect(resolveFirstEvents).toBeTypeOf('function'))
   await act(async () => { resolveFirstEvents?.(HttpResponse.json([])); await Promise.resolve() })
+  expect(screen.getByRole('heading', { name: second.inventoryCode })).toBeVisible()
+  expect(screen.getByLabelText(/notes/i)).toHaveValue('Second item note')
+})
+
+test('does not let a slow prior UUID load overwrite the current route item', async () => {
+  const second = { ...item, id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', inventoryCode: 'YP-S04-BL-02', notes: 'Second item note' }
+  const third = { ...item, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', inventoryCode: 'YP-S04-BL-03', notes: 'Third item note' }
+  let resolveFirstItem: ((response: Response) => void) | undefined
+  let resolveFirstEvents: ((response: Response) => void) | undefined
+  server.use(
+    http.get('*/api/inventory-items/:id', ({ params }) => params.id === item.id
+      ? new Promise<Response>((resolve) => { resolveFirstItem = resolve })
+      : HttpResponse.json(params.id === second.id ? second : third)),
+    http.get('*/api/inventory-items/:id/events', ({ params }) => params.id === item.id
+      ? new Promise<Response>((resolve) => { resolveFirstEvents = resolve })
+      : HttpResponse.json([])),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter initialEntries={[`/inventory/items/${third.id}`]}><UuidRaceDetailRoutes firstId={item.id} secondId={second.id} /></MemoryRouter>)
+  await screen.findByRole('heading', { name: third.inventoryCode })
+  await user.click(screen.getByRole('link', { name: /first uuid item/i }))
+  await waitFor(() => {
+    expect(resolveFirstItem).toBeTypeOf('function')
+    expect(resolveFirstEvents).toBeTypeOf('function')
+  })
+  await user.click(screen.getByRole('link', { name: /second uuid item/i }))
+  expect(await screen.findByRole('heading', { name: second.inventoryCode })).toBeVisible()
+  await act(async () => {
+    resolveFirstItem?.(HttpResponse.json(item))
+    resolveFirstEvents?.(HttpResponse.json([]))
+    await Promise.resolve()
+  })
   expect(screen.getByRole('heading', { name: second.inventoryCode })).toBeVisible()
   expect(screen.getByLabelText(/notes/i)).toHaveValue('Second item note')
 })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useBeforeUnload, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { apiError } from '../api/designs'
-import { getInventoryItemByCode, recordLabelPrinted, updateInventoryItem, verifyInventoryLabel, type InventoryItem } from '../api/inventory'
+import { getInventoryItem, getInventoryItemByCode, recordLabelPrinted, updateInventoryItem, verifyInventoryLabel, verifyInventoryLabelById, type InventoryItem } from '../api/inventory'
 import { generateExpectedItems, getOriginalSet, verifyOriginalSet, type OnboardingStage, type OriginalSetDetail } from '../api/original-sets'
 import type { MediaLink } from '../api/media'
 import PhotoGallery from '../components/media/PhotoGallery'
@@ -104,9 +104,14 @@ export default function OriginalSetOnboarding() {
     const parsed = parseInventoryQrPayload(rawCode, window.location.origin)
     if (!parsed.ok) { setError(parsed.reason === 'UNTRUSTED_ORIGIN' ? 'This label is not from this inventory.' : 'Enter a valid inventory label code.'); return false }
     try {
-      const item = await getInventoryItemByCode(parsed.inventoryCode)
+      const parsedById = 'inventoryItemId' in parsed
+      const item = parsedById
+        ? await getInventoryItem(parsed.inventoryItemId)
+        : await getInventoryItemByCode(parsed.inventoryCode)
       if (item.originalSetId !== detail.id) { setError('This label belongs to another original set.'); return false }
-      const outcome = await verifyInventoryLabel(parsed.inventoryCode)
+      const outcome = parsedById
+        ? await verifyInventoryLabelById(item.id)
+        : await verifyInventoryLabel(parsed.inventoryCode)
       setScanMessage(outcome.alreadyVerified ? 'Already verified' : 'Label verified'); await refresh(); return true
     } catch (reason) { setError(apiError(reason).message); return false }
   }

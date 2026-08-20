@@ -15,7 +15,7 @@ export default function QrLabel({ inventoryItemId, inventoryCode, designName, pi
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [qrError, setQrError] = useState('')
   const [printError, setPrintError] = useState('')
-  const payload = createInventoryDeepLink(inventoryCode, baseUrl)
+  const payload = createInventoryDeepLink(inventoryItemId, baseUrl)
 
   useEffect(() => {
     let active = true
