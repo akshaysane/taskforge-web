@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router-dom'
@@ -120,6 +120,171 @@ test('sends null to clear optional design fields', async () => {
   await user.click(screen.getByRole('button', { name: /save design/i }))
 
   expect(patchBody).toMatchObject({ primaryColor: null, secondaryColor: null, description: null })
+})
+
+test('edits a design code and sends its loaded code with an unconfirmed update', async () => {
+  let patchBody: Record<string, unknown> | undefined
+  const editableDesign = { ...createdDesign, originalSetCount: 0 }
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(editableDesign)),
+    http.patch('*/api/designs/:designId', async ({ request }) => {
+      patchBody = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ...editableDesign, designCode: 'DH-AD02' })
+    }),
+    http.put('*/api/designs/:designId/piece-requirements', () => HttpResponse.json([])),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  expect(code).not.toHaveAttribute('readonly')
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(patchBody).toMatchObject({
+    designCode: 'DH-AD02',
+    expectedDesignCode: 'YP',
+    confirmCodeChange: false,
+  })
+})
+
+test('renders a duplicate design code error without opening confirmation', async () => {
+  const editableDesign = { ...createdDesign, originalSetCount: 0 }
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(editableDesign)),
+    http.patch('*/api/designs/:designId', () => HttpResponse.json({
+      code: 'DESIGN_CODE_DUPLICATE',
+      message: 'This Design Code is already in use.',
+      fieldErrors: { designCode: 'This Design Code is already in use.' },
+    }, { status: 409 })),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(await screen.findByText('This Design Code is already in use.', { selector: '#design-code-error' })).toBeVisible()
+  expect(screen.queryByRole('dialog', { name: /confirm design code change/i })).not.toBeInTheDocument()
+})
+
+test('requires local confirmation before changing a code with dependent original sets', async () => {
+  let patchCount = 0
+  let patchBody: Record<string, unknown> | undefined
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(createdDesign)),
+    http.patch('*/api/designs/:designId', async ({ request }) => {
+      patchCount += 1
+      patchBody = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ...createdDesign, designCode: 'DH-AD02' })
+    }),
+    http.put('*/api/designs/:designId/piece-requirements', () => HttpResponse.json([])),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(screen.getByRole('dialog', { name: /confirm design code change/i })).toHaveTextContent('Changing this Design Code will also update the generated Original Set and Inventory codes associated with this design. Existing database relationships and rental history will remain unchanged.')
+  expect(patchCount).toBe(0)
+  await user.click(within(screen.getByRole('dialog', { name: /confirm design code change/i })).getByRole('button', { name: /cancel/i }))
+  expect(screen.getByLabelText(/design code/i)).toHaveValue('DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+  await user.click(screen.getByRole('button', { name: /change design code/i }))
+
+  expect(patchBody).toMatchObject({ confirmCodeChange: true })
+})
+
+test('opens confirmation when the server reports a newly created dependent set', async () => {
+  let patchCount = 0
+  const editableDesign = { ...createdDesign, originalSetCount: 0 }
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(editableDesign)),
+    http.patch('*/api/designs/:designId', () => {
+      patchCount += 1
+      return patchCount === 1
+        ? HttpResponse.json({ code: 'DESIGN_CODE_CHANGE_CONFIRMATION_REQUIRED', message: 'Confirmation required.' }, { status: 409 })
+        : HttpResponse.json({ ...editableDesign, designCode: 'DH-AD02', originalSetCount: 1 })
+    }),
+    http.put('*/api/designs/:designId/piece-requirements', () => HttpResponse.json([])),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(await screen.findByRole('dialog', { name: /confirm design code change/i })).toBeVisible()
+  await user.click(screen.getByRole('button', { name: /change design code/i }))
+  expect(patchCount).toBe(2)
+})
+
+test('keeps a successful code change after requirement saving fails and retries against the new code', async () => {
+  const expectedCodes: string[] = []
+  const editableDesign = { ...createdDesign, originalSetCount: 0 }
+  let requirementAttempt = 0
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(editableDesign)),
+    http.patch('*/api/designs/:designId', async ({ request }) => {
+      const body = await request.json() as Record<string, unknown>
+      expectedCodes.push(body.expectedDesignCode as string)
+      return HttpResponse.json({ ...editableDesign, designCode: 'DH-AD02' })
+    }),
+    http.put('*/api/designs/:designId/piece-requirements', () => {
+      requirementAttempt += 1
+      return requirementAttempt === 1
+        ? HttpResponse.json({ message: 'Requirements could not be saved.' }, { status: 500 })
+        : HttpResponse.json([])
+    }),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(await screen.findByText('Requirements could not be saved.')).toBeVisible()
+  expect(screen.getByLabelText(/design code/i)).toHaveValue('DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(expectedCodes).toEqual(['YP', 'DH-AD02'])
+})
+
+test('asks the administrator to reload when the design code is stale', async () => {
+  const editableDesign = { ...createdDesign, originalSetCount: 0 }
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(editableDesign)),
+    http.patch('*/api/designs/:designId', () => HttpResponse.json({
+      code: 'DESIGN_CODE_STALE',
+      message: 'The Design Code changed since this design was loaded.',
+    }, { status: 409 })),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+
+  expect(await screen.findByText('This Design Code changed elsewhere. Reload the design before trying again.')).toBeVisible()
+  expect(screen.getByLabelText(/design code/i)).toHaveValue('DH-AD02')
 })
 
 test('attaches and displays a READY reference photo for an existing design', async () => {

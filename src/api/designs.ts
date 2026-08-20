@@ -37,15 +37,21 @@ export interface DesignInput {
   description?: string | null
 }
 
+export interface DesignUpdateInput extends DesignInput {
+  expectedDesignCode: string
+  confirmCodeChange: boolean
+}
+
 export interface ApiError {
   message: string
   fieldErrors: Record<string, string>
+  code?: string
 }
 
 export function apiError(error: unknown): ApiError {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { message?: string; fieldErrors?: Record<string, string> } | undefined
-    return { message: data?.message ?? 'Something went wrong. Please try again.', fieldErrors: data?.fieldErrors ?? {} }
+    const data = error.response?.data as { code?: string; message?: string; fieldErrors?: Record<string, string> } | undefined
+    return { code: data?.code, message: data?.message ?? 'Something went wrong. Please try again.', fieldErrors: data?.fieldErrors ?? {} }
   }
   return { message: 'Something went wrong. Please try again.', fieldErrors: {} }
 }
@@ -66,9 +72,12 @@ export async function createDesign(input: DesignInput): Promise<Design> {
   return (await apiClient.post<Design>('/api/designs', compact(input))).data
 }
 
-export async function updateDesign(designId: string, input: Omit<DesignInput, 'designCode'>): Promise<Design> {
+export async function updateDesign(designId: string, input: DesignUpdateInput): Promise<Design> {
   const nullable = (value: string | null | undefined) => value?.trim() || null
   return (await apiClient.patch<Design>(`/api/designs/${designId}`, {
+    designCode: input.designCode,
+    expectedDesignCode: input.expectedDesignCode,
+    confirmCodeChange: input.confirmCodeChange,
     name: input.name,
     costumeType: input.costumeType,
     primaryColor: nullable(input.primaryColor),

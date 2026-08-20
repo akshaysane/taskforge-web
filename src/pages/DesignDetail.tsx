@@ -10,6 +10,7 @@ import PhotoUploader from '../components/media/PhotoUploader'
 import type { MediaLink } from '../api/media'
 
 const blankDesign: DesignInput = { designCode: '', name: '', costumeType: '', primaryColor: '', secondaryColor: '', description: '' }
+const codeChangeWarning = 'Changing this Design Code will also update the generated Original Set and Inventory codes associated with this design. Existing database relationships and rental history will remain unchanged.'
 
 interface DesignDetailProps { designId?: string; onSaved?: (design: Design) => void; onClose?: () => void }
 
@@ -34,6 +35,7 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [photos, setPhotos] = useState<MediaLink[]>([])
+  const [confirmingCodeChange, setConfirmingCodeChange] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -62,15 +64,25 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
     setRequirements((current) => current.map((requirement, requirementIndex) => requirementIndex === index ? { ...requirement, ...patch } : requirement))
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault()
+  async function saveDesign(confirmCodeChange: boolean) {
     setError('')
     setFieldErrors({})
     setSaving(true)
     try {
+      const designCodeChanged = design ? input.designCode.trim().toUpperCase() !== design.designCode : false
+      if (design && designCodeChanged && design.originalSetCount > 0 && !confirmCodeChange) {
+        setConfirmingCodeChange(true)
+        return
+      }
       const saved = design
-        ? await updateDesign(design.id, { name: input.name, costumeType: input.costumeType, primaryColor: input.primaryColor, secondaryColor: input.secondaryColor, description: input.description })
+        ? await updateDesign(design.id, {
+          ...input,
+          expectedDesignCode: design.designCode,
+          confirmCodeChange,
+        })
         : await createDesign(input)
+      setDesign(saved)
+      setInput(inputFromDesign(saved))
       const savedRequirements = await replaceDesignRequirements(saved.id, requirements)
       const complete = { ...saved, pieceRequirements: savedRequirements, media: photos }
       setDesign(complete)
@@ -80,11 +92,24 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
       if (!onSaved) navigate('/designs')
     } catch (requestError) {
       const parsed = apiError(requestError)
+      if (parsed.code === 'DESIGN_CODE_CHANGE_CONFIRMATION_REQUIRED') {
+        setConfirmingCodeChange(true)
+        return
+      }
+      if (parsed.code === 'DESIGN_CODE_STALE') {
+        setError('This Design Code changed elsewhere. Reload the design before trying again.')
+        return
+      }
       setError(parsed.message)
       setFieldErrors(parsed.fieldErrors)
     } finally {
       setSaving(false)
     }
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    void saveDesign(false)
   }
 
   if (loading) return <LoadingState label="Loading design" />
@@ -95,8 +120,8 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
     <form onSubmit={submit} className="editor-form">
       <div className="editor-fields two-column">
         <label>Design code
-          <input value={input.designCode} onChange={(event) => setInput({ ...input, designCode: event.target.value })} readOnly={Boolean(design)} aria-describedby={design ? 'design-code-help' : fieldErrors.designCode ? 'design-code-error' : undefined} />
-          {design ? <small id="design-code-help">Design codes are permanent after creation.</small> : null}
+          <input value={input.designCode} onChange={(event) => setInput({ ...input, designCode: event.target.value })} minLength={2} maxLength={20} pattern="[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*" aria-describedby={fieldErrors.designCode ? 'design-code-help design-code-error' : 'design-code-help'} />
+          <small id="design-code-help">Use letters, numbers, hyphens, or underscores.</small>
           {fieldErrors.designCode ? <span id="design-code-error" className="field-error">{fieldErrors.designCode}</span> : null}
         </label>
         <label>Name<input value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} />{fieldErrors.name ? <span className="field-error">{fieldErrors.name}</span> : null}</label>
@@ -120,5 +145,9 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
       </fieldset>
       <div className="editor-actions">{design ? <button className="button button-secondary" type="button" onClick={() => navigate('/original-sets', { state: { designId: design.id } })}>Onboard next set</button> : null}<button className="button button-secondary" type="button" onClick={close}>Cancel</button><button className="button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save design'}</button></div>
     </form>
+    {confirmingCodeChange ? <AccessibleSheet label="Confirm Design Code change" onRequestClose={() => setConfirmingCodeChange(false)}>
+      <div className="editor-heading"><div><h2>Confirm Design Code change</h2><p>{codeChangeWarning}</p></div></div>
+      <div className="editor-actions"><button data-initial-focus className="button button-secondary" type="button" onClick={() => setConfirmingCodeChange(false)}>Cancel</button><button className="button" type="button" disabled={saving} onClick={() => { setConfirmingCodeChange(false); void saveDesign(true) }}>Change Design Code</button></div>
+    </AccessibleSheet> : null}
   </AccessibleSheet>
 }
