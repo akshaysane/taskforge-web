@@ -1,4 +1,4 @@
-import { devices, expect, test as base, type Page, type TestInfo } from '@playwright/test'
+import { devices, expect, test as base, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 const adminUsername = process.env.E2E_ADMIN_USERNAME ?? 'srnatiya-admin'
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? 'srnatiya-local-admin'
@@ -43,6 +43,29 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true })
 }
 
+async function expectNoFrameworkOverlay(page: Page) {
+  await expect(page.locator('vite-error-overlay, nextjs-portal')).toHaveCount(0)
+}
+
+async function expectQrCodeReadable(qrLabel: Locator, expectedCode: string) {
+  const code = qrLabel.locator('.qr-label-copy strong')
+  await expect(code).toHaveText(expectedCode)
+  const metrics = await code.evaluate((element) => {
+    const label = element.closest('.qr-label') as HTMLElement | null
+    return {
+      codeClientWidth: element.clientWidth,
+      codeScrollWidth: element.scrollWidth,
+      labelClientHeight: label?.clientHeight ?? 0,
+      labelClientWidth: label?.clientWidth ?? 0,
+      labelScrollHeight: label?.scrollHeight ?? 0,
+      labelScrollWidth: label?.scrollWidth ?? 0,
+    }
+  })
+  expect(metrics.codeScrollWidth).toBeLessThanOrEqual(metrics.codeClientWidth)
+  expect(metrics.labelScrollWidth).toBeLessThanOrEqual(metrics.labelClientWidth)
+  expect(metrics.labelScrollHeight).toBeLessThanOrEqual(metrics.labelClientHeight)
+}
+
 async function editRoyalGreenDesignCode(page: Page, nextCode: 'RG' | 'RG_E2E') {
   await page.goto('/designs')
   await expect(page.getByRole('heading', { name: 'Designs' })).toBeVisible()
@@ -52,7 +75,13 @@ async function editRoyalGreenDesignCode(page: Page, nextCode: 'RG' | 'RG_E2E') {
   await expect(page.getByRole('heading', { name: 'Edit design' })).toBeVisible()
 
   const designCode = page.getByLabel('Design code')
-  if (await designCode.inputValue() === nextCode) return
+  if (await designCode.inputValue() === nextCode) {
+    await expect(designCode).toHaveValue(nextCode)
+    await page.getByRole('button', { name: 'Close design editor' }).click()
+    await expect(page).toHaveURL(/\/designs$/)
+    await expect(page.getByRole('article').filter({ hasText: 'Royal Green' }).locator('strong').first()).toHaveText(nextCode)
+    return
+  }
   await designCode.fill(nextCode)
   await page.getByRole('button', { name: 'Save design' }).click()
 
@@ -62,7 +91,7 @@ async function editRoyalGreenDesignCode(page: Page, nextCode: 'RG' | 'RG_E2E') {
   await confirmation.getByRole('button', { name: 'Change Design Code' }).click()
   await expect(page).toHaveURL(/\/designs$/)
   await expect(page.getByRole('heading', { name: 'Designs' })).toBeVisible()
-  await expect(page.getByRole('article').filter({ hasText: 'Royal Green' })).toContainText(nextCode)
+  await expect(page.getByRole('article').filter({ hasText: 'Royal Green' }).locator('strong').first()).toHaveText(nextCode)
 }
 
 async function normalizeAcceptanceItemLifecycle(page: Page) {
@@ -116,10 +145,14 @@ test('owner can inspect seeded inventory and open an item by manual scan', async
   assertNoConsoleErrors()
 })
 
-test('editing a Design Code preserves UUID and historical label routes', async ({ sharedPage: page }, testInfo) => {
+test('editing a Design Code restores exact current display codes while preserving historical aliases', async ({ sharedPage: page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Desktop-only editable-code acceptance')
   await login(page)
-  const assertNoConsoleErrors = failOnConsoleErrors(page)
+  const browserErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => browserErrors.push(error.message))
   const itemResponsePromise = page.waitForResponse((response) => response.request().method() === 'GET'
     && new URL(response.url()).pathname.endsWith('/api/inventory-items/by-code/RG-S01-BL')
     && response.ok())
@@ -129,8 +162,11 @@ test('editing a Design Code preserves UUID and historical label routes', async (
   expect(originalItem.id).toMatch(/^[0-9a-f-]{36}$/i)
   await expect(page.getByRole('heading', { name: 'RG-S01-BL' })).toBeVisible()
 
+  let workflowError: unknown
+  let cleanupError: unknown
   try {
     await editRoyalGreenDesignCode(page, 'RG_E2E')
+    await expectNoFrameworkOverlay(page)
 
     await page.goto(`/inventory/items/${originalItem.id}`)
     await expect(page).toHaveURL(new RegExp(`/inventory/items/${originalItem.id}$`))
@@ -138,22 +174,60 @@ test('editing a Design Code preserves UUID and historical label routes', async (
     await expect(page.getByRole('heading', { name: 'RG_E2E-S01-BL' })).toBeVisible()
     const currentQrLabel = page.getByRole('region', { name: 'QR label for RG_E2E-S01-BL' })
     await expect(currentQrLabel.getByRole('img', { name: 'QR code for RG_E2E-S01-BL' })).toBeVisible()
-    await expect(currentQrLabel.getByText('RG_E2E-S01-BL', { exact: true })).toBeVisible()
-    await expect(page.locator('vite-error-overlay, nextjs-portal')).toHaveCount(0)
+    await expectQrCodeReadable(currentQrLabel, 'RG_E2E-S01-BL')
+    await expectNoFrameworkOverlay(page)
     await capture(page, testInfo, 'editable-code-uuid-route')
 
+    const worstCaseInventoryCode = 'ABCDEFGHIJKLMNOPQRST-S99-ABCDEFGHIJ-99'
+    const currentCode = currentQrLabel.locator('.qr-label-copy strong')
+    await currentCode.evaluate((element, code) => { element.textContent = code }, worstCaseInventoryCode)
+    await expectQrCodeReadable(currentQrLabel, worstCaseInventoryCode)
+    await capture(page, testInfo, 'editable-code-worst-case-qr')
+    await currentCode.evaluate((element) => { element.textContent = 'RG_E2E-S01-BL' })
+
+    const legacyResponsePromise = page.waitForResponse((response) => response.request().method() === 'GET'
+      && new URL(response.url()).pathname.endsWith('/api/inventory-items/by-code/RG-S01-BL')
+      && response.ok())
     await page.goto('/inventory/RG-S01-BL')
+    const legacyItem = await (await legacyResponsePromise).json() as { id: string }
+    expect(legacyItem.id).toBe(originalItem.id)
     await expect(page).toHaveURL(/\/inventory\/RG-S01-BL$/)
     await expect(page.getByRole('heading', { name: 'RG_E2E-S01-BL' })).toBeVisible()
     const legacyQrLabel = page.getByRole('region', { name: 'QR label for RG_E2E-S01-BL' })
     await expect(legacyQrLabel.getByRole('img', { name: 'QR code for RG_E2E-S01-BL' })).toBeVisible()
-    await expect(legacyQrLabel.getByText('RG_E2E-S01-BL', { exact: true })).toBeVisible()
-    await expect(page.locator('vite-error-overlay, nextjs-portal')).toHaveCount(0)
+    await expectQrCodeReadable(legacyQrLabel, 'RG_E2E-S01-BL')
+    await expectNoFrameworkOverlay(page)
     await capture(page, testInfo, 'editable-code-legacy-alias')
-    assertNoConsoleErrors()
+  } catch (error) {
+    workflowError = error
   } finally {
-    await editRoyalGreenDesignCode(page, 'RG')
+    try {
+      await editRoyalGreenDesignCode(page, 'RG')
+      await expectNoFrameworkOverlay(page)
+      const restoredRow = page.getByRole('article').filter({ hasText: 'Royal Green' })
+      await expect(restoredRow.locator('strong').first()).toHaveText('RG')
+
+      // Reversible acceptance restores exact current display codes; historical aliases intentionally persist.
+      const restoredAliasResponsePromise = page.waitForResponse((response) => response.request().method() === 'GET'
+        && new URL(response.url()).pathname.endsWith('/api/inventory-items/by-code/RG_E2E-S01-BL')
+        && response.ok())
+      await page.goto('/inventory/RG_E2E-S01-BL')
+      const restoredAliasItem = await (await restoredAliasResponsePromise).json() as { id: string }
+      expect(restoredAliasItem.id).toBe(originalItem.id)
+      await expect(page.getByRole('heading', { name: 'RG-S01-BL' })).toBeVisible()
+      await expectNoFrameworkOverlay(page)
+      await capture(page, testInfo, 'editable-code-restored-alias')
+    } catch (error) {
+      cleanupError = error
+    }
   }
+
+  expect.soft(browserErrors, 'browser console or page errors across rename, views, and restoration').toEqual([])
+  if (workflowError) {
+    if (cleanupError) expect.soft(cleanupError, 'editable-code cleanup error').toBeUndefined()
+    throw workflowError
+  }
+  if (cleanupError) throw cleanupError
 })
 
 test('mobile navigation reaches owner configuration screens', async ({ sharedPage: page }, testInfo) => {

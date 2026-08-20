@@ -81,7 +81,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .qr-label img { width: .9in; height: .9in; display: block; image-rendering: pixelated; }
 .qr-label-loading { width: .9in; height: .9in; display: grid; place-content: center; border: 1px dashed #000; font-size: .1in; text-align: center; }
 .qr-label-copy { min-width: 0; display: grid; gap: .06in; }
-.qr-label-copy strong { overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .23in; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.qr-label-copy strong { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .12in; line-height: 1.05; white-space: normal; }
 .qr-label-copy span { font-size: .14in; line-height: 1.15; }
 .qr-print-button { min-width: 180px; }
 .empty-state { display: grid; min-height: 240px; place-content: center; border: 1px dashed #cfc8c2; color: #6d676a; text-align: center; }

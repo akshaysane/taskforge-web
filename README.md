@@ -58,11 +58,14 @@ Camera scanning and physical printing still require a real phone/camera and prin
 
 QR payloads use the immutable `/inventory/items/:uuid` route, so a printed QR continues to identify the same Inventory Item after display codes change. Printed label copy shows the current human-readable Inventory Code. Historical `/inventory/:inventoryCode` links and manual code entry remain compatible through backend aliases.
 
+The reversible local acceptance workflow restores the current Design, Original Set, and Inventory display codes exactly to their seeded `RG` values. It intentionally keeps the Design and Inventory historical aliases created by each rename: repeatability restores current display state without erasing label history.
+
 ## Main routes
 
 - `/dashboard`: inventory and onboarding summary
 - `/inventory`: search, filter, and item cards
-- `/inventory/:inventoryCode`: measurements, photos, lifecycle, QR label, and history
+- `/inventory/items/:inventoryItemId`: canonical immutable-ID route for measurements, photos, lifecycle, QR label, and history
+- `/inventory/:inventoryCode`: legacy-compatible, alias-aware route to the same Inventory Item detail
 - `/scan`: camera or manual label lookup
 - `/original-sets`: tailor-set onboarding
 - `/designs`: design configuration
