@@ -343,7 +343,7 @@ test('keeps a successful code change after requirement saving fails and retries 
   expect(screen.getByLabelText(/design code/i)).toHaveValue('DH-AD02')
   await user.click(screen.getByRole('button', { name: /save design/i }))
 
-  expect(expectedCodes).toEqual(['YP', 'DH-AD02'])
+  await waitFor(() => expect(expectedCodes).toEqual(['YP', 'DH-AD02']))
 })
 
 test('asks the administrator to reload when the design code is stale', async () => {
