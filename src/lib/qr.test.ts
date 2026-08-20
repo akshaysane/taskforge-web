@@ -30,6 +30,25 @@ test('accepts a human-readable inventory code with an underscored design prefix'
     .toEqual({ ok: true, inventoryCode: 'DH_AD01-S01-BL' })
 })
 
+test.each([
+  'A-S01-BL',
+  'ABCDEFGHIJKLMNOPQRSTU-S01-BL',
+  'ABCDEFGHIJKLMNOPQRST-S12345678901234567890123456-ABCDEFGHIJ-32767',
+])('rejects QR Inventory Code %s outside Design Code or total-length boundaries', (inventoryCode) => {
+  expect(parseInventoryQrPayload(inventoryCode, 'https://app.example.com'))
+    .toEqual({ ok: false, reason: 'INVALID_CODE' })
+})
+
+test.each([
+  'AB-S01-BL',
+  'ABCDEFGHIJKLMNOPQRST-S2147483647-ABCDEFGHIJ-32767',
+  'AB-S01-S2147483647-ABCDEFGHIJ-32767',
+  'DH_AD-02-S01-BL-02',
+])('accepts QR Inventory Code boundary %s', (inventoryCode) => {
+  expect(parseInventoryQrPayload(inventoryCode, 'https://app.example.com'))
+    .toEqual({ ok: true, inventoryCode })
+})
+
 test('rejects a deep link from another origin', () => {
   expect(parseInventoryQrPayload('https://evil.example/inventory/YP-S04-BL', 'https://app.example.com'))
     .toEqual({ ok: false, reason: 'UNTRUSTED_ORIGIN' })

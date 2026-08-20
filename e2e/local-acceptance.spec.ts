@@ -230,6 +230,75 @@ test('editing a Design Code restores exact current display codes while preservin
   if (cleanupError) throw cleanupError
 })
 
+test('mobile reviews and cancels a Design Code draft without sending a PATCH', async ({ sharedPage: page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Mobile-only non-mutating editable-code acceptance')
+  await login(page)
+  const browserErrors: string[] = []
+  const designPatchRequests: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => browserErrors.push(error.message))
+  page.on('request', (request) => {
+    if (request.method() === 'PATCH' && /\/api\/designs\/[0-9a-f-]{36}$/i.test(new URL(request.url()).pathname)) {
+      designPatchRequests.push(request.url())
+    }
+  })
+
+  await page.goto('/designs')
+  await expect(page).toHaveTitle('Nritya Alankara Collections')
+  await expect(page.getByRole('heading', { name: 'Designs' })).toBeVisible()
+  const designRow = page.getByRole('article').filter({ hasText: 'Royal Green' })
+  await expect(designRow.locator('strong').first()).toHaveText('RG')
+  await designRow.getByRole('link', { name: 'Edit Royal Green' }).click()
+
+  const editor = page.getByRole('dialog', { name: 'Edit design' })
+  await expect(editor).toBeVisible()
+  await expect(page).toHaveURL(/\/designs\/[0-9a-f-]{36}$/i)
+  await expectNoFrameworkOverlay(page)
+  const designCode = editor.getByLabel('Design code')
+  await expect(designCode).toHaveValue('RG')
+  await designCode.fill('RG_MOBILE')
+  await expect(designCode).toHaveValue('RG_MOBILE')
+  await editor.getByRole('button', { name: 'Save design' }).click()
+
+  const confirmation = page.getByRole('dialog', { name: 'Confirm Design Code change' })
+  await expect(confirmation).toBeVisible()
+  await expect(confirmation.getByText(codeChangeWarning, { exact: true })).toBeVisible()
+  const layout = await confirmation.evaluate((element) => {
+    const bounds = element.getBoundingClientRect()
+    return {
+      bodyScrollWidth: document.body.scrollWidth,
+      dialogClientWidth: element.clientWidth,
+      dialogScrollWidth: element.scrollWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      left: bounds.left,
+      right: bounds.right,
+      viewportWidth: window.innerWidth,
+    }
+  })
+  expect(layout.documentScrollWidth).toBeLessThanOrEqual(layout.viewportWidth)
+  expect(layout.bodyScrollWidth).toBeLessThanOrEqual(layout.viewportWidth)
+  expect(layout.dialogScrollWidth).toBeLessThanOrEqual(layout.dialogClientWidth)
+  expect(layout.left).toBeGreaterThanOrEqual(0)
+  expect(layout.right).toBeLessThanOrEqual(layout.viewportWidth)
+  await expectNoFrameworkOverlay(page)
+  expect(designPatchRequests, 'no Design PATCH before explicit confirmation').toEqual([])
+  await capture(page, testInfo, 'mobile-editable-code-confirmation')
+
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(editor).toBeVisible()
+  await expect(designCode).toHaveValue('RG_MOBILE')
+  await expectNoFrameworkOverlay(page)
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page).toHaveURL(/\/designs$/)
+  await expect(page.getByRole('article').filter({ hasText: 'Royal Green' }).locator('strong').first()).toHaveText('RG')
+  await expectNoFrameworkOverlay(page)
+  expect(designPatchRequests, 'canceling keeps the Design Code change draft-only').toEqual([])
+  expect(browserErrors, 'browser console or page errors across the mobile draft/cancel flow').toEqual([])
+  await capture(page, testInfo, 'mobile-editable-code-cancelled')
+})
+
 test('mobile navigation reaches owner configuration screens', async ({ sharedPage: page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Mobile-only navigation acceptance')
   await login(page)
