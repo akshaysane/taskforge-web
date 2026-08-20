@@ -67,6 +67,21 @@ test('renders server field errors in the design form', async () => {
   expect(await screen.findByText('must use two to ten letters')).toBeVisible()
 })
 
+test('exposes a browser-compatible Design Code grammar', async () => {
+  server.use(http.get('*/api/piece-types', () => HttpResponse.json([])))
+  render(<MemoryRouter><DesignDetail /></MemoryRouter>)
+
+  const designCode = await screen.findByLabelText(/design code/i)
+  const source = designCode.getAttribute('pattern')
+  expect(source).not.toBeNull()
+  const browserPattern = new RegExp(`^(?:${source})$`, 'v')
+
+  expect(browserPattern.test('DH-AD02')).toBe(true)
+  expect(browserPattern.test('DH_AD02')).toBe(true)
+  expect(browserPattern.test('DH--AD02')).toBe(false)
+  expect(browserPattern.test('DH__AD02')).toBe(false)
+})
+
 test('adds the three configured piece types as required design pieces', async () => {
   const pieces = [
     { id: '4e48d7f1-fdef-4b21-a2bb-9df4c7492db5', code: 'BL', name: 'Blouse', description: null, active: true, sortOrder: 1 },

@@ -144,7 +144,7 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
     <form onSubmit={submit} className="editor-form">
       <div className="editor-fields two-column">
         <label>Design code
-          <input value={input.designCode} onChange={(event) => setInput({ ...input, designCode: event.target.value })} minLength={2} maxLength={20} pattern="[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*" aria-describedby={fieldErrors.designCode ? 'design-code-help design-code-error' : 'design-code-help'} />
+          <input value={input.designCode} onChange={(event) => setInput({ ...input, designCode: event.target.value })} minLength={2} maxLength={20} pattern="[A-Za-z0-9]+(?:(?:_|-)[A-Za-z0-9]+)*" aria-describedby={fieldErrors.designCode ? 'design-code-help design-code-error' : 'design-code-help'} />
           <small id="design-code-help">Use letters, numbers, hyphens, or underscores.</small>
           {fieldErrors.designCode ? <span id="design-code-error" className="field-error">{fieldErrors.designCode}</span> : null}
         </label>
