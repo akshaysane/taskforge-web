@@ -14,6 +14,13 @@ const codeChangeWarning = 'Changing this Design Code will also update the genera
 
 interface DesignDetailProps { designId?: string; onSaved?: (design: Design) => void; onClose?: () => void }
 
+interface DesignSubmission {
+  input: DesignInput
+  expectedDesignCode?: string
+  requirements: DesignPieceRequirement[]
+  photos: MediaLink[]
+}
+
 function inputFromDesign(design: Design): DesignInput {
   return { designCode: design.designCode, name: design.name, costumeType: design.costumeType, primaryColor: design.primaryColor, secondaryColor: design.secondaryColor, description: design.description }
 }
@@ -35,7 +42,7 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [photos, setPhotos] = useState<MediaLink[]>([])
-  const [confirmingCodeChange, setConfirmingCodeChange] = useState(false)
+  const [pendingCodeChange, setPendingCodeChange] = useState<DesignSubmission | null>(null)
 
   useEffect(() => {
     let active = true
@@ -64,42 +71,54 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
     setRequirements((current) => current.map((requirement, requirementIndex) => requirementIndex === index ? { ...requirement, ...patch } : requirement))
   }
 
-  async function saveDesign(confirmCodeChange: boolean) {
+  function snapshotSubmission(): DesignSubmission {
+    return {
+      input: { ...input },
+      expectedDesignCode: design?.designCode,
+      requirements: requirements.map((requirement) => ({ ...requirement })),
+      photos: [...photos],
+    }
+  }
+
+  async function saveDesign(submission: DesignSubmission, confirmCodeChange: boolean) {
     setError('')
     setFieldErrors({})
     setSaving(true)
     try {
-      const designCodeChanged = design ? input.designCode.trim().toUpperCase() !== design.designCode : false
+      const designCodeChanged = design ? submission.input.designCode.trim().toUpperCase() !== submission.expectedDesignCode : false
       if (design && designCodeChanged && design.originalSetCount > 0 && !confirmCodeChange) {
-        setConfirmingCodeChange(true)
+        setPendingCodeChange(submission)
         return
       }
       const saved = design
         ? await updateDesign(design.id, {
-          ...input,
-          expectedDesignCode: design.designCode,
+          ...submission.input,
+          expectedDesignCode: submission.expectedDesignCode ?? design.designCode,
           confirmCodeChange,
         })
-        : await createDesign(input)
+        : await createDesign(submission.input)
       setDesign(saved)
       setInput(inputFromDesign(saved))
-      const savedRequirements = await replaceDesignRequirements(saved.id, requirements)
-      const complete = { ...saved, pieceRequirements: savedRequirements, media: photos }
+      const savedRequirements = await replaceDesignRequirements(saved.id, submission.requirements)
+      const complete = { ...saved, pieceRequirements: savedRequirements, media: submission.photos }
       setDesign(complete)
       setInput(inputFromDesign(complete))
       setRequirements(savedRequirements)
+      setPendingCodeChange(null)
       onSaved?.(complete)
       if (!onSaved) navigate('/designs')
     } catch (requestError) {
       const parsed = apiError(requestError)
       if (parsed.code === 'DESIGN_CODE_CHANGE_CONFIRMATION_REQUIRED') {
-        setConfirmingCodeChange(true)
+        setPendingCodeChange(submission)
         return
       }
       if (parsed.code === 'DESIGN_CODE_STALE') {
+        setPendingCodeChange(null)
         setError('This Design Code changed elsewhere. Reload the design before trying again.')
         return
       }
+      setPendingCodeChange(null)
       setError(parsed.message)
       setFieldErrors(parsed.fieldErrors)
     } finally {
@@ -109,12 +128,17 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    void saveDesign(false)
+    void saveDesign(snapshotSubmission(), false)
   }
 
   if (loading) return <LoadingState label="Loading design" />
 
-  return <AccessibleSheet label={design ? 'Edit design' : 'Add design'} onRequestClose={close}>
+  if (pendingCodeChange) return <AccessibleSheet key="confirm-design-code-change" label="Confirm Design Code change" onRequestClose={() => setPendingCodeChange(null)}>
+    <div className="editor-heading"><div><h2>Confirm Design Code change</h2><p>{codeChangeWarning}</p></div></div>
+    <div className="editor-actions"><button data-initial-focus className="button button-secondary" type="button" onClick={() => setPendingCodeChange(null)}>Cancel</button><button className="button" type="button" disabled={saving} onClick={() => void saveDesign(pendingCodeChange, true)}>Change Design Code</button></div>
+  </AccessibleSheet>
+
+  return <AccessibleSheet key="design-editor" label={design ? 'Edit design' : 'Add design'} onRequestClose={close}>
     <div className="editor-heading"><div><h1>{design ? 'Edit design' : 'Add design'}</h1><p>Define the costume and the pieces each complete set needs.</p></div><button data-initial-focus className="icon-button" type="button" onClick={close} aria-label="Close design editor">×</button></div>
     {error ? <ErrorBanner message={error} /> : null}
     <form onSubmit={submit} className="editor-form">
@@ -145,9 +169,5 @@ export default function DesignDetail({ designId: suppliedId, onSaved, onClose }:
       </fieldset>
       <div className="editor-actions">{design ? <button className="button button-secondary" type="button" onClick={() => navigate('/original-sets', { state: { designId: design.id } })}>Onboard next set</button> : null}<button className="button button-secondary" type="button" onClick={close}>Cancel</button><button className="button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save design'}</button></div>
     </form>
-    {confirmingCodeChange ? <AccessibleSheet label="Confirm Design Code change" onRequestClose={() => setConfirmingCodeChange(false)}>
-      <div className="editor-heading"><div><h2>Confirm Design Code change</h2><p>{codeChangeWarning}</p></div></div>
-      <div className="editor-actions"><button data-initial-focus className="button button-secondary" type="button" onClick={() => setConfirmingCodeChange(false)}>Cancel</button><button className="button" type="button" disabled={saving} onClick={() => { setConfirmingCodeChange(false); void saveDesign(true) }}>Change Design Code</button></div>
-    </AccessibleSheet> : null}
   </AccessibleSheet>
 }

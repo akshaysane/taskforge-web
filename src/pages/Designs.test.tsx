@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router-dom'
@@ -143,11 +143,11 @@ test('edits a design code and sends its loaded code with an unconfirmed update',
   await user.type(code, 'DH-AD02')
   await user.click(screen.getByRole('button', { name: /save design/i }))
 
-  expect(patchBody).toMatchObject({
+  await waitFor(() => expect(patchBody).toMatchObject({
     designCode: 'DH-AD02',
     expectedDesignCode: 'YP',
     confirmCodeChange: false,
-  })
+  }))
 })
 
 test('renders a duplicate design code error without opening confirmation', async () => {
@@ -201,7 +201,7 @@ test('requires local confirmation before changing a code with dependent original
   await user.click(screen.getByRole('button', { name: /save design/i }))
   await user.click(screen.getByRole('button', { name: /change design code/i }))
 
-  expect(patchBody).toMatchObject({ confirmCodeChange: true })
+  await waitFor(() => expect(patchBody).toMatchObject({ confirmCodeChange: true }))
 })
 
 test('opens confirmation when the server reports a newly created dependent set', async () => {
@@ -228,7 +228,88 @@ test('opens confirmation when the server reports a newly created dependent set',
 
   expect(await screen.findByRole('dialog', { name: /confirm design code change/i })).toBeVisible()
   await user.click(screen.getByRole('button', { name: /change design code/i }))
-  expect(patchCount).toBe(2)
+  await waitFor(() => expect(patchCount).toBe(2))
+})
+
+test('confirmation Escape retains the editor and its draft', async () => {
+  const onClose = vi.fn()
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(createdDesign)),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} onClose={onClose} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+  await screen.findByRole('dialog', { name: /confirm design code change/i })
+  await user.keyboard('{Escape}')
+
+  expect(onClose).not.toHaveBeenCalled()
+  expect(screen.getByRole('dialog', { name: /edit design/i })).toBeVisible()
+  expect(screen.getByLabelText(/design code/i)).toHaveValue('DH-AD02')
+})
+
+test('confirmation focus wraps without entering the underlying editor', async () => {
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(createdDesign)),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+  const confirmation = await screen.findByRole('dialog', { name: /confirm design code change/i })
+  const cancel = within(confirmation).getByRole('button', { name: /cancel/i })
+  const confirm = within(confirmation).getByRole('button', { name: /change design code/i })
+
+  expect(cancel).toHaveFocus()
+  await user.keyboard('{Shift>}{Tab}{/Shift}')
+  expect(confirm).toHaveFocus()
+  await user.keyboard('{Tab}')
+  expect(cancel).toHaveFocus()
+})
+
+test('server-required confirmation submits the original delayed draft snapshot', async () => {
+  const patchBodies: Record<string, unknown>[] = []
+  const editableDesign = { ...createdDesign, originalSetCount: 0 }
+  let respondConfirmation: ((response: Response) => void) | undefined
+  server.use(
+    http.get('*/api/piece-types', () => HttpResponse.json([])),
+    http.get('*/api/designs/:designId', () => HttpResponse.json(editableDesign)),
+    http.patch('*/api/designs/:designId', async ({ request }) => {
+      patchBodies.push(await request.json() as Record<string, unknown>)
+      if (patchBodies.length === 1) return await new Promise<Response>((resolve) => { respondConfirmation = resolve })
+      return HttpResponse.json({ ...editableDesign, designCode: 'DH-AD02', originalSetCount: 1 })
+    }),
+    http.put('*/api/designs/:designId/piece-requirements', () => HttpResponse.json([])),
+  )
+  const user = userEvent.setup()
+  render(<MemoryRouter><DesignDetail designId={createdDesign.id} /></MemoryRouter>)
+
+  const code = await screen.findByLabelText(/design code/i)
+  await user.clear(code)
+  await user.type(code, 'DH-AD02')
+  await user.click(screen.getByRole('button', { name: /save design/i }))
+  await waitFor(() => expect(respondConfirmation).toBeTypeOf('function'))
+  await user.clear(code)
+  await user.type(code, 'DH-AD03')
+  respondConfirmation?.(HttpResponse.json({ code: 'DESIGN_CODE_CHANGE_CONFIRMATION_REQUIRED', message: 'Confirmation required.' }, { status: 409 }))
+
+  const confirmation = await screen.findByRole('dialog', { name: /confirm design code change/i })
+  await user.click(within(confirmation).getByRole('button', { name: /change design code/i }))
+
+  await waitFor(() => expect(patchBodies).toHaveLength(2))
+  expect(patchBodies[1]).toMatchObject({
+    designCode: 'DH-AD02',
+    expectedDesignCode: 'YP',
+    confirmCodeChange: true,
+  })
 })
 
 test('keeps a successful code change after requirement saving fails and retries against the new code', async () => {
