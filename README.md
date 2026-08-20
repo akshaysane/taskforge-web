@@ -56,6 +56,8 @@ pnpm test:e2e
 
 Camera scanning and physical printing still require a real phone/camera and printer. The browser suite verifies the manual scan path and QR/print UI without claiming hardware acceptance.
 
+QR payloads use the immutable `/inventory/items/:uuid` route, so a printed QR continues to identify the same Inventory Item after display codes change. Printed label copy shows the current human-readable Inventory Code. Historical `/inventory/:inventoryCode` links and manual code entry remain compatible through backend aliases.
+
 ## Main routes
 
 - `/dashboard`: inventory and onboarding summary

@@ -2,6 +2,7 @@ import { devices, expect, test as base, type Page, type TestInfo } from '@playwr
 
 const adminUsername = process.env.E2E_ADMIN_USERNAME ?? 'srnatiya-admin'
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? 'srnatiya-local-admin'
+const codeChangeWarning = 'Changing this Design Code will also update the generated Original Set and Inventory codes associated with this design. Existing database relationships and rental history will remain unchanged.'
 
 async function authenticate(page: Page) {
   await page.goto('/login')
@@ -40,6 +41,28 @@ function failOnConsoleErrors(page: Page) {
 
 async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true })
+}
+
+async function editRoyalGreenDesignCode(page: Page, nextCode: 'RG' | 'RG_E2E') {
+  await page.goto('/designs')
+  await expect(page.getByRole('heading', { name: 'Designs' })).toBeVisible()
+  const designRow = page.getByRole('article').filter({ hasText: 'Royal Green' })
+  await expect(designRow).toBeVisible()
+  await designRow.getByRole('link', { name: 'Edit Royal Green' }).click()
+  await expect(page.getByRole('heading', { name: 'Edit design' })).toBeVisible()
+
+  const designCode = page.getByLabel('Design code')
+  if (await designCode.inputValue() === nextCode) return
+  await designCode.fill(nextCode)
+  await page.getByRole('button', { name: 'Save design' }).click()
+
+  const confirmation = page.getByRole('dialog', { name: 'Confirm Design Code change' })
+  await expect(confirmation).toBeVisible()
+  await expect(confirmation.getByText(codeChangeWarning, { exact: true })).toBeVisible()
+  await confirmation.getByRole('button', { name: 'Change Design Code' }).click()
+  await expect(page).toHaveURL(/\/designs$/)
+  await expect(page.getByRole('heading', { name: 'Designs' })).toBeVisible()
+  await expect(page.getByRole('article').filter({ hasText: 'Royal Green' })).toContainText(nextCode)
 }
 
 async function normalizeAcceptanceItemLifecycle(page: Page) {
@@ -81,16 +104,56 @@ test('owner can inspect seeded inventory and open an item by manual scan', async
   await expect(itemCard).toContainText('Blouse')
   await itemCard.getByRole('link', { name: 'View item' }).click()
   await expect(page.getByRole('heading', { name: 'YP-S01-BL' })).toBeVisible()
-  await expect(page.getByText('Identity is permanent:')).toBeVisible()
+  await expect(page.getByText('Internal item identity and lineage remain permanent.')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Label' })).toBeVisible()
 
   await page.getByRole('link', { name: 'Scan', exact: true }).first().click()
   await page.getByLabel('Enter inventory code').fill('YP-S01-BL')
   await page.getByRole('button', { name: 'Find item' }).click()
-  await expect(page).toHaveURL(/\/inventory\/YP-S01-BL$/)
+  await expect(page).toHaveURL(/\/inventory\/items\/[0-9a-f-]{36}$/i)
   await expect(page.getByRole('heading', { name: 'YP-S01-BL' })).toBeVisible()
   await capture(page, testInfo, 'inventory-detail')
   assertNoConsoleErrors()
+})
+
+test('editing a Design Code preserves UUID and historical label routes', async ({ sharedPage: page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Desktop-only editable-code acceptance')
+  await login(page)
+  const assertNoConsoleErrors = failOnConsoleErrors(page)
+  const itemResponsePromise = page.waitForResponse((response) => response.request().method() === 'GET'
+    && new URL(response.url()).pathname.endsWith('/api/inventory-items/by-code/RG-S01-BL')
+    && response.ok())
+
+  await page.goto('/inventory/RG-S01-BL')
+  const originalItem = await (await itemResponsePromise).json() as { id: string }
+  expect(originalItem.id).toMatch(/^[0-9a-f-]{36}$/i)
+  await expect(page.getByRole('heading', { name: 'RG-S01-BL' })).toBeVisible()
+
+  try {
+    await editRoyalGreenDesignCode(page, 'RG_E2E')
+
+    await page.goto(`/inventory/items/${originalItem.id}`)
+    await expect(page).toHaveURL(new RegExp(`/inventory/items/${originalItem.id}$`))
+    await expect(page).toHaveTitle('Nritya Alankara Collections')
+    await expect(page.getByRole('heading', { name: 'RG_E2E-S01-BL' })).toBeVisible()
+    const currentQrLabel = page.getByRole('region', { name: 'QR label for RG_E2E-S01-BL' })
+    await expect(currentQrLabel.getByRole('img', { name: 'QR code for RG_E2E-S01-BL' })).toBeVisible()
+    await expect(currentQrLabel.getByText('RG_E2E-S01-BL', { exact: true })).toBeVisible()
+    await expect(page.locator('vite-error-overlay, nextjs-portal')).toHaveCount(0)
+    await capture(page, testInfo, 'editable-code-uuid-route')
+
+    await page.goto('/inventory/RG-S01-BL')
+    await expect(page).toHaveURL(/\/inventory\/RG-S01-BL$/)
+    await expect(page.getByRole('heading', { name: 'RG_E2E-S01-BL' })).toBeVisible()
+    const legacyQrLabel = page.getByRole('region', { name: 'QR label for RG_E2E-S01-BL' })
+    await expect(legacyQrLabel.getByRole('img', { name: 'QR code for RG_E2E-S01-BL' })).toBeVisible()
+    await expect(legacyQrLabel.getByText('RG_E2E-S01-BL', { exact: true })).toBeVisible()
+    await expect(page.locator('vite-error-overlay, nextjs-portal')).toHaveCount(0)
+    await capture(page, testInfo, 'editable-code-legacy-alias')
+    assertNoConsoleErrors()
+  } finally {
+    await editRoyalGreenDesignCode(page, 'RG')
+  }
 })
 
 test('mobile navigation reaches owner configuration screens', async ({ sharedPage: page }, testInfo) => {
